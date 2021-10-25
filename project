@@ -1,0 +1,122 @@
+
+###########################################################3
+
+implement all:
+GET POST PUT HEAD DELETE
+
+read HTTP rfc
+and understand this
+w3schools
+
+3.2 uniform resource identifiers.....18
+
+post and put - are challenging
+
+
+# default charset is ISO-8859-1
+The maximum amount of data that can be received is 1048576 bytes.
+
+###########################################################3
+
+headers: almost all the headers
+
+###########################################################3
+
+Multithreading - 
+
+###########################################################3
+
+COOKIES: resp of browser, server should keep cookie live
+cookies - not implement php bindings
+server should do make-shift work
+
+server will create a cookie 
+create a random number - save in file and necessary info 
+and when client asks this just say that this is not the first time
+
+###########################################################3
+
+persistent and non-persistant 
+by default - non-persistent
+using headers implement persistant connections
+
+###########################################################3
+logging with levels of logging
+maintain a record of what happened
+but when many 500 lines then they become a nuissance
+so some argument - less printing or more printing
+
+dprintf(level of printing, print statement) - while executing then if specified > 2 then only write otherwise 
+# define DEBIG 1
+# DEVELOPER 2
+# USER 0
+
+REFER apache login
+
+###########################################################3
+
+handlng file permissions
+
+reading the file permission
+get for some file which does not have read permisions 
+then error
+use library function - file readable or no writable or no
+which permissions to check
+calling appropriate file permissions
+
+if no permission then error response back
+ERROR 404 - does not exist
+
+###########################################################
+sir does not expect
+stop-start-restart
+
+sudo service apache start
+---stop
+bindong released
+
+python3 ./httserver.py start
+---  stop
+--- restart
+
+
+###########################################################3
+
+timeout 300
+keepalive on|off
+
+
+###########################################################3
+server configuration
+DocumentRoot
+ log file pathname
+
+###########################################################3
+handle all status codes
+handle diff type of media - pdf, upload, mkv jpg
+character sets - utf-8, utf=16
+
+not excpected-
+access authentication
+many security considerations 
+
+###########################################################
+
+cache control headers - sir will specify
+
+###########################################################3
+
+important - testing code
+you have to write python programs to automatically test all the functionality of your program
+program must all take care of error possibilities, wrong requests, everything
+Also test the server for multi-threading
+
+SIGNIFICANT AMOUNT OF CODE
+1000 lines atleast
+###########################################################3
+
+Evaluation - 
+basic 
+more marks by doing less - jastt implement karaycha
+
+###########################################################
