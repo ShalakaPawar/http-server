@@ -74,6 +74,6 @@ def get_status_code(code = None):
 		return 500, status_codes[500]
 
 
-print(get_status_code(200))
+#print(get_status_code(200))
 #print(status_codes[412])
 #print(status_codes[5100])

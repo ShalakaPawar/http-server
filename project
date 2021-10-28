@@ -120,3 +120,26 @@ basic
 more marks by doing less - jastt implement karaycha
 
 ###########################################################
+
+
+
+
+SO_REUSEADDR
+You can use setsockopt() to set the SO_REUSEADDR socket option, which explicitly allows a process to bind to a port which remains in TIME_WAIT (it still only allows A process to be bound to that port). This is the both the simplest and the most effective option for reducing the "address already in use" error.
+
+
+
+### reference
+
+Date representation
+https://stackoverflow.com/questions/225086/rfc-1123-date-representation-in-python
+
+
+
+The command os.path.abspath(os.path.dirname(__file__)) returns the directory in which the code file is stored, but os.getcwd() gives you your current working directory which is by default where the code was executed, the latter can be changed using the os.chdir() command.
+
+
+
+. All Internet-based HTTP/1.1 servers
+MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message which lacks a Host header
+field.
