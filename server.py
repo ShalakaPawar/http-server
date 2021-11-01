@@ -5,18 +5,15 @@ import sys
 import time
 import os
 import email.utils
-import config
+
+import mimetypes
 # global variables
 serverIP = '127.0.0.1'
 serverPort = 12001
 CRLF = '\r\n'
 
-os.system("python3 config.py")
-
-##############################
 import statusCode
-##############################
-
+import config
 
 # create response
 # SHOULD headers in response
@@ -35,15 +32,24 @@ response = {
 def date_time_format(local_time = False):
 	return email.utils.formatdate(timeval = None, localtime = local_time, usegmt = False)
 
+# status code 404 - html message
+def error_display(http_resp):
+	msg = ''
+	if http_resp['status_code'] != 200:
+		msg = '<html><h2>{}: {}</h2></html>'.format(http_resp['status_code'], statusCode.get_status_code(http_resp['status_code']))
+	return msg
+
 # add required parameters
 # need method for POST, PUT
-def createResponse(http_resp, method, cType= 'text/html',cEncoding= 'gzip', cLength = 0):
+def createResponse(http_resp, method, cType= 'text/html', cLength = 0):
 	#response['statusCode'] = statusCode			# already added outside
 	#response['statusResp'] = statusCode.get_status_code(statusCode)
 	http_resp['Date'] = str(date_time_format(False))
-	http_resp['Content-Encoding'] = cEncoding
 	http_resp['Content-Type'] = cType
 	http_resp['Content-Length']=cLength
+	m = error_display(http_resp)
+	if len(m)> 0:	
+		http_resp['Content-Length'] = len(m)
 	http_response = ""
 	first_line = ''
 	for key, value in http_resp.items():
@@ -52,10 +58,9 @@ def createResponse(http_resp, method, cType= 'text/html',cEncoding= 'gzip', cLen
 		else:
 			http_response += CRLF
 			http_response += str(key) + ": " + str(value)
-		
-	http_response += CRLF + CRLF
+	http_response += CRLF + CRLF + m
 	http_response = first_line + http_response
-	print("http-response =\n", http_response)
+	#print("http-response=\n",http_response)
 	return http_response
 
 # returns method, abs_path, httpversion, headers, msg
@@ -63,33 +68,179 @@ def splitRequest(request):
 	r =  request.split(CRLF)
 	req_line = r[0]
 	headers = r[1: ]	# till the CRLF is identified
-	msg = r[-1]	# for post put
+	msg = r[-1]	# for post put - make some changes
 
 	first_line = req_line.split(' ')
 	method, abs_path, version = first_line
+	method = method.strip()
+	abs_path = abs_path.strip()
+	version = version.strip()
 	headers_dict = {}
 	for i in headers:
 		try:
 			hfield, hvalue = i.split(':', 1)	
+			hfield = hfield.strip()
+			hvalue = hvalue.strip()
 			headers_dict[hfield] = hvalue
 		except:
 			continue
 	return method, abs_path, version, headers_dict, msg
 	
+# incomplete
+def checkAcceptHeader(http_resp, accept_type, resp_type):
+	# split accept header by priority in list
+	accept_list = accept_type.split(',')
+	accept = []
+	for a in accept_list:
+		try:
+			j = a.split(';')
+			if len(j) > 1:
+				accept.append([((j[1]).split('='))[-1], j[0]])
+			else:
+				accept.append([1, j[0]])
+		except:
+			continue
+	accept.sort(key=lambda x: int(x[0]))
+	# check if resp_type in it
+	if resp_type not in accept_list:	
+		http_resp['status_code'] = 406
+		http_resp['status_msg'] = statusCode.get_status_code(406)
+		return False
+	return True
 
+
+# mimetype - import mimetype
+#returns data for Content-Type header
+# for other file types - change this!!
+def get_ctype(filename):
+	# extension --> content-type
+	# html --> text/html
+	# png-->image/png
+	#  jpeg --> image/jpeg
+	# jpg --> image.jpg
+#	text/css    
+#	text/csv    
+#	text/html    
+#	text/javascript 
+#	text/plain    
+#	text/xml    
+	return mimetypes.MimeTypes().guess_type(filename)[0]
+
+#server will create a cookie 
+#create a random number - save in file and necessary info 
+#on client request identify if this is 1st access or no
+def createCookie(ip_addr, http_resp):
+	# Set-Cookie: <em>value</em>[; expires=<em>date</em>][; domain=<em>domain</em>][; path=<em>path</em>][; secure]
+	value =  str(random.randint(1, 150000))
+	expiry = 0	# change this
+	return
+
+# for images open file in binary
+# return get response with file
 def GET_Request(http_resp, method, abs_path, httpversion, headers, msg=""):
-	print("\nGET function called\n")
-	print(f"Method:{method}\nabs_path: {abs_path}\nversion: {httpversion}\nheaders:{headers},\n msg :{msg}")
+	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nmsg:{msg}")
+	print("Headers:")
+	for k, v in headers.items():
+		print(k, v)
+	# start with abs_path
+	# if no specific file return index.html
+	fileExtension = ''	# needed for content-type
+	file_path = ''
+	filedata = ''
+	if '.' in abs_path:
+		fileExtension = (abs_path.split('.'))[-1]
+	else:
+		fileExtension = 'html'
 	
-	
-		
+	# for images open file in binary
 
+	# check if file present or no - give404 not found error
+	p = config.ServerRoot + config.FetchFile + abs_path
+	if os.path.isdir(p):
+		if (p.strip())[-1] != '/':
+			# then get the index.html file present
+			p = p + '/'
+		p=p+'index.html'
 
-def POST_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
-	pass
+	filename = (p.split('/')[-1]).strip()
+	# check if the file exists
+	if not os.path.isfile(p):
+		# 404 not found error
+		http_resp['status_code'] = 404
+		http_resp['status_msg'] = statusCode.get_status_code(404)
+	else:	
+		# file has been found send the file as message
+		# check permission - file is readable
+		if not os.access(config.FetchFile + abs_path, os.R_OK):
+			http_resp['status_code'] = 404
+			http_resp['status_msg'] = statusCode.get_status_code(404)
+		else:
+			try:
+				with open(p, 'r') as f:
+					for line in f:
+						filedata += line
+
+			except Exception as e:
+				# 404 not found error
+				print(e)
+				http_resp['status_code'] = 404
+				http_resp['status_msg'] = statusCode.get_status_code(404)
+				filedata = ''
+	resp = createResponse(http_resp, method, get_ctype(filename), len(filedata)) + filedata
+	return resp
+
 
 def HEAD_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
-	pass
+	fileExtension = ''	
+	file_path = ''
+	filedata = ''
+	if '.' in abs_path:
+		fileExtension = (abs_path.split('.'))[-1]
+	else:
+		fileExtension = 'html'
+	# check if file present or no - give404 not found error
+	p = config.ServerRoot + config.FetchFile + abs_path
+	if os.path.isdir(p):
+		if (p.strip())[-1] != '/':
+			# then get the index.html file present
+			p = p + '/'
+		p=p+'index.html'
+
+	filename = (p.split('/')[-1]).strip()
+	# check if the file exists
+	if not os.path.isfile(p):
+		# 404 not found error
+		http_resp['status_code'] = 404
+		http_resp['status_msg'] = statusCode.get_status_code(404)
+	else:	
+		# file has been found send the file as message
+		# check permission - file is readable
+		if not os.access(config.FetchFile + abs_path, os.R_OK):
+			http_resp['status_code'] = 403
+			http_resp['status_msg'] = statusCode.get_status_code(403)
+		else:
+			try:
+				with open(p, 'r') as f:
+					for line in f:
+						filedata += line
+
+			except Exception as e:
+				# 404 not found error
+				print(e)
+				http_resp['status_code'] = 404
+				http_resp['status_msg'] = statusCode.get_status_code(404)
+				filedata = ''
+	resp = createResponse(http_resp, method, get_ctype(filename), len(filedata))
+	return resp
+
+def POST_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
+	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nmsg:{msg}")
+	print("Headers:")
+	for k, v in headers.items():
+		print(k, v)
+	return ''
+	# start with abs_path
+
 
 def DELETE_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
 	#A successful response MUST be 200 (OK) if the server response includes a message body, 
@@ -108,11 +259,15 @@ def PUT_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
 # return True is request is valid 
 # False for invalid, error
 def checkRequest(http_resp, method, abs_path, httpversion, headers, msg_body = ""):
-
+	if httpversion.strip() != 'HTTP/1.1':
+		http_resp['status_code'] = 505
+		http_resp['status_msg'] = statusCode.get_status_code(505)
+		return False
 	if method not  in ["GET", "POST", "PUT", "DELETE", "HEAD"]:
 		http_resp['status_code'] = 501
 		http_resp['status_msg'] = statusCode.get_status_code(501)
 		return False
+	return True
 
 # keep alive or close
 def connHeader():
@@ -129,28 +284,22 @@ def handleRequest(ip, request):
 	isReqValid =checkRequest(http_resp, method, abs_path, httpversion, headers, msg)
 	try:
 		if isReqValid:
-			print(f"Method:{method}")
 		
 			if method == 'GET':
-				print("call get function")
-				GET_Request(http_resp, method, abs_path, httpversion, headers, msg)
+				resp = GET_Request(http_resp, method, abs_path, httpversion, headers, msg)
 			elif method == 'HEAD':
-				print("call head function")
-				HEAD_Request(http_resp, method, abs_path, httpversion, headers, msg)
+				resp = HEAD_Request(http_resp, method, abs_path, httpversion, headers, msg)
 			elif method == 'POST':
-				print("call post function")
-				POST_Request(http_resp, method, abs_path, httpversion, headers, msg)
+				resp = POST_Request(http_resp, method, abs_path, httpversion, headers, msg)
 			elif method == 'PUT':
-				print("call put function")
-				PUT_Request(http_resp, method, abs_path, httpversion, headers, msg)
+				resp = PUT_Request(http_resp, method, abs_path, httpversion, headers, msg)
 			elif method == 'DELETE':
-				print("call delete function")
-				DELETE_Request(http_resp, method, abs_path, httpversion, headers, msg)
+				resp = DELETE_Request(http_resp, method, abs_path, httpversion, headers, msg)
 		# request is not valid
 		else:
 			print("Invalid request")
 			resp = createResponse(http_resp, method)	# send parameters - make changes to function
-			return resp
+		return resp
 			
 
 	except Exception as e:
@@ -175,25 +324,12 @@ def clientRequests(client):
 			print("Receiving client message...")
 			recv_msg = s.recv(4096)	
 			request = recv_msg.decode('ISO-8859-1') # default charset
-			print(request)
+			#print(request)
 
 			response = handleRequest(ip, request)
-			
-			#response_body = b"""<html><body><h1>Request received!</h1><body></html>"""
-			#response_line = b"HTTP/1.1 200 OK\r\n"
-
-			#headers = b"".join([b"Server: Crude Server\r\n", b"Content-Type: text/html\r\n"])
-			#blank_line = b"\r\n"
-
-			#response_body = b"""<html>
-			#	<body>
-			#	<h1>Request received!</h1>
-			#	<body>
-			#	</html>
-			#"""
-			#response = b"".join([response_line, headers, blank_line, response_body])
-			
-			s.send(response.encode())
+			print("\nResponse:")
+			print(response)
+			s.send(response.encode('ISO-8859-1'))
 
 			#s.close()	# for now testing - change
 			# check the connection header - if alive or close
