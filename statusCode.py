@@ -69,9 +69,9 @@ status_codes = {
 
 def get_status_code(code = None):
 	if code in status_codes:
-		return code, status_codes[code]
+		return status_codes[code]
 	else:
-		return 500, status_codes[500]
+		return status_codes[500]
 
 
 #print(get_status_code(200))

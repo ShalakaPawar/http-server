@@ -34,6 +34,13 @@ server will create a cookie
 create a random number - save in file and necessary info 
 and when client asks this just say that this is not the first time
 
+HTTP Cookies: When you send a request to the server, the server sends a reply in which it embeds the cookie which serves as an identifier to identify the user.  So, next time when you visit the same website, the cookie lets the server know that you are visiting the website again.
+
+
+Set-Cookie: <em>value</em>[; expires=<em>date</em>][; domain=<em>domain</em>][; path=<em>path</em>][; secure]
+
+https://humanwhocodes.com/blog/2009/05/05/http-cookies-explained/
+
 ###########################################################3
 
 persistent and non-persistant 
@@ -115,14 +122,44 @@ SIGNIFICANT AMOUNT OF CODE
 1000 lines atleast
 ###########################################################3
 
-Evaluation - 
-basic 
-more marks by doing less - jastt implement karaycha
 
 ###########################################################
 
+ErrorLogFormat allows to specify what supplementary information is logged in the error log in addition to the actual log message.
+https://httpd.apache.org/docs/2.4/mod/core.html#errorlogformat
 
 
+#Simple example
+ErrorLogFormat "[%t] [%l] [pid %P] %F: %E: [client %a] %M"
+
+%a	Client IP address and port of the request
+%t	The current time
+%l	Loglevel of the message
+%P	Process ID of current process
+%F	Source file name and line number of the log call
+%M	The actual log message
+%E	APR/OS error status code and string
+
+example: [Thu May 12 08:28:57.652118 2011] [core:error] [pid 8777:tid 4326490112] [client ::1:58619] File does not exist: /usr/local/apache2/htdocs/favicon.ico
+
+
+
+Log level:
+crit		Critical Conditions.	"socket: Failed to get a socket, exiting child"
+error	Error conditions.	"Premature end of script headers"
+info	Informational.	"Server seems busy, (you may need to increase StartServers, or Min/MaxSpareServers)..."
+debug	Debug-level messages	"Opening config file ..."
+
+
+The TimeOut directive defines the length of time Apache httpd will wait for I/O in various circumstances:
+
+DocumentRoot Directive:
+This directive sets the directory from which httpd will serve files. 
+he server appends the path from the requested URL to the document root to make the path to the document. 
+
+
+
+################################################
 
 SO_REUSEADDR
 You can use setsockopt() to set the SO_REUSEADDR socket option, which explicitly allows a process to bind to a port which remains in TIME_WAIT (it still only allows A process to be bound to that port). This is the both the simplest and the most effective option for reducing the "address already in use" error.
@@ -143,3 +180,89 @@ The command os.path.abspath(os.path.dirname(__file__)) returns the directory in 
 . All Internet-based HTTP/1.1 servers
 MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message which lacks a Host header
 field.
+
+
+Python Check if Directory Exists
+path. isdir() method checks if a directory exists. It returns False if you specify a path to a file or a directory that does not exist. If a directory exists, isdir() returns True
+isfile()
+access() - permission
+
+
+Call os.chmod(path, mode) to change the file permissions to mode for the file located at path.
+
+
+
+###########################################
+
+The most common type are:
+
+Type application
+
+application/java-archive
+application/EDI-X12   
+application/EDIFACT   
+application/javascript   
+application/octet-stream   
+application/ogg   
+application/pdf  
+application/xhtml+xml   
+application/x-shockwave-flash    
+application/json  
+application/ld+json  
+application/xml   
+application/zip  
+application/x-www-form-urlencoded  
+Type audio
+
+audio/mpeg   
+audio/x-ms-wma   
+audio/vnd.rn-realaudio   
+audio/x-wav   
+Type image
+
+image/gif   
+image/jpeg   
+image/png   
+image/tiff    
+image/vnd.microsoft.icon    
+image/x-icon   
+image/vnd.djvu   
+image/svg+xml    
+Type multipart
+
+multipart/mixed    
+multipart/alternative   
+multipart/related (using by MHTML (HTML mail).)  
+multipart/form-data  
+Type text
+
+text/css    
+text/csv    
+text/html    
+text/javascript (obsolete)    
+text/plain    
+text/xml    
+Type video
+
+video/mpeg    
+video/mp4    
+video/quicktime    
+video/x-ms-wmv    
+video/x-msvideo    
+video/x-flv   
+video/webm   
+Type vnd :
+
+application/vnd.android.package-archive
+application/vnd.oasis.opendocument.text    
+application/vnd.oasis.opendocument.spreadsheet  
+application/vnd.oasis.opendocument.presentation   
+application/vnd.oasis.opendocument.graphics   
+application/vnd.ms-excel    
+application/vnd.openxmlformats-officedocument.spreadsheetml.sheet   
+application/vnd.ms-powerpoint    
+application/vnd.openxmlformats-officedocument.presentationml.presentation    
+application/msword   
+application/vnd.openxmlformats-officedocument.wordprocessingml.document   
+application/vnd.mozilla.xul+xml   
+
