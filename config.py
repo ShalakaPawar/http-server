@@ -53,11 +53,6 @@ AccesLog = ServerRoot + '/logfiles/accesslog.log'
 #info	Informational.	"Server seems busy, (you may need to increase StartServers, or Min/MaxSpareServers)..."
 #debug	Debug-level messages	"Opening config file ..."
 LogLevel = ['error', 'info', 'debug']
-<<<<<<< HEAD
-
-=======
->>>>>>> 55dab9b3d9db82cec37ff6287057be71153dc2a6
-
 
 
 

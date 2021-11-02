@@ -1,3 +1,10 @@
+To get line number type in error
+
+exc_type, exc_obj, exc_tb = sys.exc_info()
+fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+print(exc_type, fname, exc_tb.tb_lineno)
+
+
 
 ###########################################################3
 
@@ -265,4 +272,16 @@ application/vnd.openxmlformats-officedocument.presentationml.presentation
 application/msword   
 application/vnd.openxmlformats-officedocument.wordprocessingml.document   
 application/vnd.mozilla.xul+xml   
+
+
+========================================================================================
+
+POST form
+
+
+You need enctype="multipart/form-data" otherwise you will load only the file name and not the data.
+
+
+
+https://www.geeksforgeeks.org/http-headers-content-type/
 

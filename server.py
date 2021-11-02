@@ -64,18 +64,21 @@ def createResponse(http_resp, method, cType= 'text/html', cLength = 0):
 	return http_response
 
 # returns method, abs_path, httpversion, headers, msg
-def splitRequest(request):
-	r =  request.split(CRLF)
+def splitRequest(client_socket, recv_msg):
+	request = recv_msg.decode('ISO-8859-1') 	# default charset
+	r =  request.split('\r\n\r\n')
+	req_body = r[1:]
+	r = r[0]
+	r = r.split(CRLF)
 	req_line = r[0]
 	headers = r[1: ]	# till the CRLF is identified
-	msg = r[-1]	# for post put - make some changes
-
 	first_line = req_line.split(' ')
 	method, abs_path, version = first_line
 	method = method.strip()
 	abs_path = abs_path.strip()
 	version = version.strip()
 	headers_dict = {}
+	req_body = ''
 	for i in headers:
 		try:
 			hfield, hvalue = i.split(':', 1)	
@@ -84,7 +87,31 @@ def splitRequest(request):
 			headers_dict[hfield] = hvalue
 		except:
 			continue
-	return method, abs_path, version, headers_dict, msg
+	# if post or put method
+	# if method is post or put then message body is present or else it is empty
+	# length of message mat be larger, recv in loop
+	if method in ['POST', 'PUT']:
+		received_length = int(len(recv_msg))
+		remaining_length = 0
+		remaining_data = b''
+		clength = int(headers_dict.get('Content-Length', 0))
+		print("Content length = ", clength)
+		while True:
+			remaining_length = clength - received_length
+			if remaining_length <0:
+				break
+			remaining_data = client_socket.recv(4096)
+			if not remaining_data:
+				break
+			recv_msg = recv_msg + remaining_data
+			received_length = int(len(recv_msg))
+		# now entire message is received
+		print("Length of received data =",received_length)
+		#print("\n\nmessage with extra data =",remaining_data)
+		req_body = recv_msg.split(b'\r\n\r\n')[1:]
+		delimiter = b'\r\n'
+		req_body = delimiter.join(req_body)
+	return method, abs_path, version, headers_dict, req_body
 	
 # incomplete
 def checkAcceptHeader(http_resp, accept_type, resp_type):
@@ -137,8 +164,8 @@ def createCookie(ip_addr, http_resp):
 
 # for images open file in binary
 # return get response with file
-def GET_Request(http_resp, method, abs_path, httpversion, headers, msg=""):
-	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nmsg:{msg}")
+def GET_Request(http_resp, method, abs_path, httpversion, headers):
+	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}")
 	print("Headers:")
 	for k, v in headers.items():
 		print(k, v)
@@ -175,22 +202,17 @@ def GET_Request(http_resp, method, abs_path, httpversion, headers, msg=""):
 			http_resp['status_code'] = 404
 			http_resp['status_msg'] = statusCode.get_status_code(404)
 		else:
-			try:
-				with open(p, 'r') as f:
-					for line in f:
-						filedata += line
+		
+			with open(p, 'r') as f:
+				for line in f:
+					filedata += line
 
-			except Exception as e:
-				# 404 not found error
-				print(e)
-				http_resp['status_code'] = 404
-				http_resp['status_msg'] = statusCode.get_status_code(404)
-				filedata = ''
+		
 	resp = createResponse(http_resp, method, get_ctype(filename), len(filedata)) + filedata
 	return resp
 
 
-def HEAD_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
+def HEAD_Request(http_resp, method, abs_path, httpversion, headers):
 	fileExtension = ''	
 	file_path = ''
 	filedata = ''
@@ -226,6 +248,7 @@ def HEAD_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
 
 			except Exception as e:
 				# 404 not found error
+				print("Head request error")
 				print(e)
 				http_resp['status_code'] = 404
 				http_resp['status_msg'] = statusCode.get_status_code(404)
@@ -233,32 +256,82 @@ def HEAD_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
 	resp = createResponse(http_resp, method, get_ctype(filename), len(filedata))
 	return resp
 
-def POST_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
-	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nmsg:{msg}")
+# A POST request is typically sent via an HTML form and results in a change on the server.
+def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b''):
+	"""print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nrequest body:{req_body}")
 	print("Headers:")
 	for k, v in headers.items():
 		print(k, v)
+"""
+	print("Request body:")
+	print(len(req_body.split(b'\r\n')))
+	for i in req_body.split(b'\r\n'):
+		print(i)
+
+	# check the Content-Type header to decide the type
+	# content-type exists in header
+	try:
+		if headers.get('Content-Type') is not None:
+			ctype = headers.get('Content-Type')
+			if 'application/x-www-form-urlencoded' in ctype:
+				 print()
+			
+			if 'multipart/form-data' in ctype:
+				boundary = ctype[ctype.rfind('-')+1:].strip()
+				fields=0
+				print("Boundary = {",boundary, "}, ", type(boundary))
+				# Content-Disposition: form-data; name="bat"
+				# Content-Disposition: form-data; name="filename"; filename="1.odt"
+				temp = False
+				req_body_split = req_body.split(b'\r\n')
+				for line in :
+					#print("Line = ", line)
+					if line.find(bytes('----' + boundary, 'utf-8')) != -1:
+						#print("boundary line")
+						fields += 1
+						continue
+					elif b'Content-Disposition' in line:
+						temp=True		# to capture the next line
+						print("Content-Disposition=",end='')
+						content_disposition = line[line.index(b':')+2:line.index(b';')].strip().decode()		# saved as string
+						print(content_disposition)		
+						field_name = line[line.index(b'name=')+5:].decode()
+						print("field name =",end='')
+						print(field_name, type(field_name))
+						#print(line + 1)
+						#field_value = line + 1
+					elif temp:
+						temp = True
+						
+						
+				
+			if 'text/plain' in ctype:		
+				print()
+	except Exception as e:
+		print("Post requets error")
+		exc_type, exc_obj, exc_tb = sys.exc_info()
+		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+		print(exc_type, fname, exc_tb.tb_lineno)
+		print(e)
 	return ''
-	# start with abs_path
+
+def PUT_Request(http_resp, method, abs_path, httpversion, headers, req_body = b''):
+	#update an existing resource on the server
+	pass
 
 
-def DELETE_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
+def DELETE_Request(http_resp, method, abs_path, httpversion, headers):
 	#A successful response MUST be 200 (OK) if the server response includes a message body, 
 	# 202 (Accepted) if the DELETE action has not yet been performed, or 
 	#204 (No content) if the DELETE action has been completed but the response does not have a message body.
 
 	pass
 
-def PUT_Request(http_resp, method, abs_path, httpversion, headers, msg=''):
-	#update an existing resource on the server
-	pass
-
-
 # check for errors in request
 # msg_body is for post put
 # return True is request is valid 
 # False for invalid, error
-def checkRequest(http_resp, method, abs_path, httpversion, headers, msg_body = ""):
+def checkRequest(http_resp, method, abs_path, httpversion, headers, req_body = ""):
 	if httpversion.strip() != 'HTTP/1.1':
 		http_resp['status_code'] = 505
 		http_resp['status_msg'] = statusCode.get_status_code(505)
@@ -276,39 +349,44 @@ def connHeader():
 
 # parse requests
 # split request into method, path, version, headers, msg
-def handleRequest(ip, request):
+def handleRequest(s, ip, recv_msg):
 	global response
 	print("Handle request function started . . . ")
-	method, abs_path, httpversion, headers, msg = splitRequest(request)
+	method, abs_path, httpversion, headers, req_body = splitRequest(s, recv_msg)
+
 	http_resp = response.copy()
-	isReqValid =checkRequest(http_resp, method, abs_path, httpversion, headers, msg)
+	isReqValid =checkRequest(http_resp, method, abs_path, httpversion, headers, req_body)
 	try:
 		if isReqValid:
-		
 			if method == 'GET':
-				resp = GET_Request(http_resp, method, abs_path, httpversion, headers, msg)
+				resp = GET_Request(http_resp, method, abs_path, httpversion, headers)
 			elif method == 'HEAD':
-				resp = HEAD_Request(http_resp, method, abs_path, httpversion, headers, msg)
+				resp = HEAD_Request(http_resp, method, abs_path, httpversion, headers)
 			elif method == 'POST':
-				resp = POST_Request(http_resp, method, abs_path, httpversion, headers, msg)
+				resp = POST_Request(http_resp, method, abs_path, httpversion, headers, req_body)
 			elif method == 'PUT':
-				resp = PUT_Request(http_resp, method, abs_path, httpversion, headers, msg)
+				resp = PUT_Request(http_resp, method, abs_path, httpversion, headers, req_body)
 			elif method == 'DELETE':
-				resp = DELETE_Request(http_resp, method, abs_path, httpversion, headers, msg)
+				resp = DELETE_Request(http_resp, method, abs_path, httpversion, headers)
 		# request is not valid
 		else:
 			print("Invalid request")
 			resp = createResponse(http_resp, method)	# send parameters - make changes to function
-		return resp
-			
-
 	except Exception as e:
+		print("Handle request error")
 		print(e)
 		http_resp['status_code'] = 500
 		http_resp['status_msg'] = statusCode.get_status_code(500)
 		resp = createResponse(http_resp, method)
 		# add in error log
 	return resp
+
+
+def get_method(request):
+	request = request.decode('ISO-8859-1')
+	method = ((request.split(CRLF))[0]).split(' ')[0]
+	return method.strip()
+	
 
 
 def clientRequests(client):
@@ -322,11 +400,10 @@ def clientRequests(client):
 		try:
 			# receive request from client
 			print("Receiving client message...")
-			recv_msg = s.recv(4096)	
-			request = recv_msg.decode('ISO-8859-1') # default charset
+			recv_msg = s.recv(4096)
 			#print(request)
 
-			response = handleRequest(ip, request)
+			response = handleRequest(s, ip, recv_msg)
 			print("\nResponse:")
 			print(response)
 			s.send(response.encode('ISO-8859-1'))
@@ -334,7 +411,7 @@ def clientRequests(client):
 			#s.close()	# for now testing - change
 			# check the connection header - if alive or close
 			# write a function to check this
-			if connHeader() == True:
+			if connHeader():
 				# decide what is true
 				# close then true
 				print("Socket is closing . . .")
