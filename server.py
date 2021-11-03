@@ -98,7 +98,7 @@ def splitRequest(client_socket, recv_msg):
 		print("Content length = ", clength)
 		while True:
 			remaining_length = clength - received_length
-			if remaining_length <0:
+			if remaining_length < 0:
 				break
 			remaining_data = client_socket.recv(4096)
 			if not remaining_data:
@@ -165,8 +165,8 @@ def createCookie(ip_addr, http_resp):
 # for images open file in binary
 # return get response with file
 def GET_Request(http_resp, method, abs_path, httpversion, headers):
-	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}")
-	print("Headers:")
+#	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}")
+#	print("Headers:")
 	for k, v in headers.items():
 		print(k, v)
 	# start with abs_path
@@ -174,40 +174,50 @@ def GET_Request(http_resp, method, abs_path, httpversion, headers):
 	fileExtension = ''	# needed for content-type
 	file_path = ''
 	filedata = ''
-	if '.' in abs_path:
-		fileExtension = (abs_path.split('.'))[-1]
-	else:
-		fileExtension = 'html'
-	
-	# for images open file in binary
+	try:
+		if '.' in abs_path:
+			fileExtension = (abs_path.split('.'))[-1]
+		else:
+			fileExtension = 'html'
+		
+		# for images open file in binary
 
-	# check if file present or no - give404 not found error
-	p = config.ServerRoot + config.FetchFile + abs_path
-	if os.path.isdir(p):
-		if (p.strip())[-1] != '/':
-			# then get the index.html file present
-			p = p + '/'
-		p=p+'index.html'
+		# check if file present or no - give404 not found error
+		p = config.ServerRoot + config.FetchFile + abs_path
+		if os.path.isdir(p):
+			if (p.strip())[-1] != '/':
+				# then get the index.html file present
+				p = p + '/'
+			p=p+'index.html'
 
-	filename = (p.split('/')[-1]).strip()
-	# check if the file exists
-	if not os.path.isfile(p):
-		# 404 not found error
-		http_resp['status_code'] = 404
-		http_resp['status_msg'] = statusCode.get_status_code(404)
-	else:	
-		# file has been found send the file as message
-		# check permission - file is readable
-		if not os.access(config.FetchFile + abs_path, os.R_OK):
+		filename = (p.split('/')[-1]).strip()
+		# check if the file exists
+		if not os.path.isfile(p):
+			# 404 not found error
 			http_resp['status_code'] = 404
 			http_resp['status_msg'] = statusCode.get_status_code(404)
-		else:
-		
-			with open(p, 'r') as f:
-				for line in f:
-					filedata += line
-
-		
+		else:	
+			# file has been found send the file as message
+			# check permission - file is readable
+			if not os.access(config.FetchFile + abs_path, os.R_OK):
+				http_resp['status_code'] = 404
+				http_resp['status_msg'] = statusCode.get_status_code(404)
+			else:
+				with open(p, 'rb') as f:
+					for bline in f:
+						try:
+							line = bline.decode('utf-8')	
+							filedata += line
+						except UnicodeDecodeError as ex:
+							print("ignore")
+					
+	except Exception as e:
+		print("GET request error")
+		exc_type, exc_obj, exc_tb = sys.exc_info()
+		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+		print(exc_type, fname, exc_tb.tb_lineno)
+		print(e)
+			
 	resp = createResponse(http_resp, method, get_ctype(filename), len(filedata)) + filedata
 	return resp
 
@@ -258,11 +268,11 @@ def HEAD_Request(http_resp, method, abs_path, httpversion, headers):
 
 # A POST request is typically sent via an HTML form and results in a change on the server.
 def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b''):
-	"""print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nrequest body:{req_body}")
+	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nrequest body:{req_body}")
 	print("Headers:")
 	for k, v in headers.items():
 		print(k, v)
-"""
+
 	print("Request body:")
 	print(len(req_body.split(b'\r\n')))
 	for i in req_body.split(b'\r\n'):
@@ -274,39 +284,60 @@ def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b
 		if headers.get('Content-Type') is not None:
 			ctype = headers.get('Content-Type')
 			if 'application/x-www-form-urlencoded' in ctype:
-				 print()
-			
+				print("application/x-www")
+				formData = {}
+				for pair in req_body.split(b'&'):
+					print(pair)	
+					if b'+' in pair:
+						# replaces all occurences in pair
+						pair.replace(b'+', b' ')	
+					if b'%' in pair:
+						c = pair.count(b'%')
+						index = 0
+						for i in range(c):
+							index = pair.find(b'%', index)	
+							v = pair[index + 1 : index + 3]
+							r = bytes.fromhex(v)
+							pair.replace(v, r)
+					field_name, field_value = pair.split(b'=')
+					formData[field_name] = field_value
+						 
 			if 'multipart/form-data' in ctype:
 				boundary = ctype[ctype.rfind('-')+1:].strip()
-				fields=0
-				print("Boundary = {",boundary, "}, ", type(boundary))
-				# Content-Disposition: form-data; name="bat"
-				# Content-Disposition: form-data; name="filename"; filename="1.odt"
-				temp = False
-				req_body_split = req_body.split(b'\r\n')
-				for line in :
-					#print("Line = ", line)
-					if line.find(bytes('----' + boundary, 'utf-8')) != -1:
-						#print("boundary line")
-						fields += 1
-						continue
-					elif b'Content-Disposition' in line:
-						temp=True		# to capture the next line
-						print("Content-Disposition=",end='')
-						content_disposition = line[line.index(b':')+2:line.index(b';')].strip().decode()		# saved as string
-						print(content_disposition)		
-						field_name = line[line.index(b'name=')+5:].decode()
-						print("field name =",end='')
-						print(field_name, type(field_name))
-						#print(line + 1)
-						#field_value = line + 1
-					elif temp:
-						temp = True
-						
-						
+				formData = {}		# save as key value pair
+				field_name = filename = field_value = ''
+				# better way
+				for line in req_body.split(bytes(boundary, 'ISO-8859-1')):
+					if b'Content-Disposition: form-data' in line:
+						if b'filename' in line:
+							field_name = line[line.index(b'name=')+5 : line.find(b';', line.find(b';') + 1)].decode('ISO-8859-1')
+							filename = line[line.index(b'filename=')+9 : line.find(b'\r\n', line.find(b'filename'))].decode('ISO-8859-1')
+							ctype = line[line.index(b'Content-Type') + 15 : line.find(b'\r\n', line.find(b'Content-Type')) + 1].decode('ISO-8859-1')
+							# start index of file_data							
+							file_data_index = line.find(b'\r\n', line.find(b'Content-Type')) + 2		
+							filedata = line[file_data_index : line.find(b'----')]		#did not decode
+							field_value = filename
+						else:
+							field_name = line[line.index(b'name=')+5 :  line.find(b'\r\n', line.find(b'name=') + 1)].decode()
+							field_value = line[line.find(b'\r\n', line.find(b'name') + 1) + 2 : line.find(b'\r\n', line.find(b'\r\n', line.find(b'name') + 1)+ 1)].decode()
+							#print(field_name, field_value)
+						formData[field_name.strip()] = field_value.strip()
+					else:
+						continue		
 				
-			if 'text/plain' in ctype:		
-				print()
+			if 'text/plain' in ctype:	
+				print("Text/plain")	
+				index = 0
+				formData = {}
+				for body in req_ody:
+					index += 1
+					key, value = body.split("=")
+					formData[key] = value
+			
+			print("File content =",filedata)
+			for k, v in formData.items():
+				print(f'{k}={v}')	
+
 	except Exception as e:
 		print("Post requets error")
 		exc_type, exc_obj, exc_tb = sys.exc_info()
@@ -360,6 +391,7 @@ def handleRequest(s, ip, recv_msg):
 		if isReqValid:
 			if method == 'GET':
 				resp = GET_Request(http_resp, method, abs_path, httpversion, headers)
+				print(resp, type(resp))
 			elif method == 'HEAD':
 				resp = HEAD_Request(http_resp, method, abs_path, httpversion, headers)
 			elif method == 'POST':
@@ -377,6 +409,10 @@ def handleRequest(s, ip, recv_msg):
 		print(e)
 		http_resp['status_code'] = 500
 		http_resp['status_msg'] = statusCode.get_status_code(500)
+		exc_type, exc_obj, exc_tb = sys.exc_info()
+		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+		print(exc_type, fname, exc_tb.tb_lineno)
+		print(e)
 		resp = createResponse(http_resp, method)
 		# add in error log
 	return resp

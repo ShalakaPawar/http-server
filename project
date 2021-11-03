@@ -284,4 +284,22 @@ You need enctype="multipart/form-data" otherwise you will load only the file nam
 
 
 https://www.geeksforgeeks.org/http-headers-content-type/
+https://developer.mozilla.org/en-US/docs/Learn/Forms/Sending_and_retrieving_form_data
+https://jkorpela.fi/forms/file.html
 
+b'----------------------------'
+b'\r\nContent-Disposition: form-data; name="give your name"\r\nshalaka\r\n----------------------------'
+b'\r\nContent-Disposition: form-data; name="some data"\r\npawar\r\n----------------------------'
+b'\r\nContent-Disposition: form-data; name="nameoffile"; filename="test.odt"\r\nContent-Type: application/vnd.oasis.opendocument.text\r\nPK\x03\x04\x14\x00\x00\x08\x00\x00\xd2\x9cbS^\xc62\x0c\'\x00\x00\x00\'\x00\x00\x00\x08\x00\x00\x00mimetypeapplication/vnd.oasis.opendocument.textPK\x03\x04\x14\x00\x00\x08\x00\x00\xd2\x9cbS\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00Configurations2/toolbar/PK\x03\x04\x14\x00\x00\x08\x00\x00\xd2\x9cbS\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x18\x00\x00\x00Configurations2/floater/PK\x03\x
+
+
+
+
+				# Content-Disposition: form-data; name="bat"
+				# Content-Disposition: form-data; name="filename"; filename="1.odt"
+
+
+
+2]  application/x-www-form-urlencoded, the name-value pairs are separated by '&' and the names and values are separated by '='. The spaces between the texts are replaced by a '+' and non-alphanumeric characters are %-encoded. Here, parsing is pretty straight-forward and wouldn't be tough to handle.
+
+A space is assigned number 32, which is 20 in hexadecimal. When you see “%20,” it represents a space in an encoded URL
