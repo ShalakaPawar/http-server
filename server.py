@@ -5,6 +5,7 @@ import sys
 import time
 import os
 import email.utils
+import binascii
 
 import mimetypes
 # global variables
@@ -35,8 +36,10 @@ def date_time_format(local_time = False):
 # status code 404 - html message
 def error_display(http_resp):
 	msg = ''
-	if http_resp['status_code'] != 200:
+	if http_resp['status_code']//100 != 2:
 		msg = '<html><h2>{}: {}</h2></html>'.format(http_resp['status_code'], statusCode.get_status_code(http_resp['status_code']))
+		http_resp['Content-Length'] = len(msg)
+		http_resp['Content-Type'] = 'text/html'
 	return msg
 
 # add required parameters
@@ -64,7 +67,7 @@ def createResponse(http_resp, method, cType= 'text/html', cLength = 0):
 	return http_response
 
 # returns method, abs_path, httpversion, headers, msg
-def splitRequest(client_socket, recv_msg):
+def splitRequest(http_resp, client_socket, recv_msg):
 	request = recv_msg.decode('ISO-8859-1') 	# default charset
 	r =  request.split('\r\n\r\n')
 	req_body = r[1:]
@@ -94,7 +97,15 @@ def splitRequest(client_socket, recv_msg):
 		received_length = int(len(recv_msg))
 		remaining_length = 0
 		remaining_data = b''
-		clength = int(headers_dict.get('Content-Length', 0))
+		
+		# SHOULD condition 
+		if headers_dict.get('Content-Length') is None:
+			http_resp['status_code'] = 411
+			http_resp['status_msg'] = statusCode.get_status_code(411)
+			# error log
+			return method, abs_path, version, headers_dict, req_body
+
+		clength = int(headers_dict.get('Content-Length'))
 		print("Content length = ", clength)
 		while True:
 			remaining_length = clength - received_length
@@ -167,8 +178,8 @@ def createCookie(ip_addr, http_resp):
 def GET_Request(http_resp, method, abs_path, httpversion, headers):
 #	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}")
 #	print("Headers:")
-	for k, v in headers.items():
-		print(k, v)
+#	for k, v in headers.items():
+#		print(k, v)
 	# start with abs_path
 	# if no specific file return index.html
 	fileExtension = ''	# needed for content-type
@@ -200,8 +211,8 @@ def GET_Request(http_resp, method, abs_path, httpversion, headers):
 			# file has been found send the file as message
 			# check permission - file is readable
 			if not os.access(config.FetchFile + abs_path, os.R_OK):
-				http_resp['status_code'] = 404
-				http_resp['status_msg'] = statusCode.get_status_code(404)
+				http_resp['status_code'] = 403
+				http_resp['status_msg'] = statusCode.get_status_code(403)
 			else:
 				with open(p, 'rb') as f:
 					for bline in f:
@@ -268,6 +279,7 @@ def HEAD_Request(http_resp, method, abs_path, httpversion, headers):
 
 # A POST request is typically sent via an HTML form and results in a change on the server.
 def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b''):
+	"""	
 	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nrequest body:{req_body}")
 	print("Headers:")
 	for k, v in headers.items():
@@ -277,7 +289,10 @@ def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b
 	print(len(req_body.split(b'\r\n')))
 	for i in req_body.split(b'\r\n'):
 		print(i)
-
+	"""
+	formData = {}		# save as key value pair
+	field_name = filename = field_value = None
+	filedata = req_body
 	# check the Content-Type header to decide the type
 	# content-type exists in header
 	try:
@@ -285,7 +300,6 @@ def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b
 			ctype = headers.get('Content-Type')
 			if 'application/x-www-form-urlencoded' in ctype:
 				print("application/x-www")
-				formData = {}
 				for pair in req_body.split(b'&'):
 					print(pair)	
 					if b'+' in pair:
@@ -296,16 +310,14 @@ def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b
 						index = 0
 						for i in range(c):
 							index = pair.find(b'%', index)	
-							v = pair[index + 1 : index + 3]
+							v = binascii.hexlify(pair[index + 1 : index + 3])
 							r = bytes.fromhex(v)
 							pair.replace(v, r)
 					field_name, field_value = pair.split(b'=')
 					formData[field_name] = field_value
 						 
-			if 'multipart/form-data' in ctype:
+			elif 'multipart/form-data' in ctype:
 				boundary = ctype[ctype.rfind('-')+1:].strip()
-				formData = {}		# save as key value pair
-				field_name = filename = field_value = ''
 				# better way
 				for line in req_body.split(bytes(boundary, 'ISO-8859-1')):
 					if b'Content-Disposition: form-data' in line:
@@ -324,27 +336,78 @@ def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b
 						formData[field_name.strip()] = field_value.strip()
 					else:
 						continue		
-				
-			if 'text/plain' in ctype:	
-				print("Text/plain")	
+			elif 'text/plain' in ctype:
 				index = 0
-				formData = {}
-				for body in req_ody:
+				for body in req_body:
 					index += 1
-					key, value = body.split("=")
+					key, value = body.split(b"=")
 					formData[key] = value
-			
-			print("File content =",filedata)
-			for k, v in formData.items():
-				print(f'{k}={v}')	
-
+				filedata = req_body[:]
+						
 	except Exception as e:
 		print("Post requets error")
 		exc_type, exc_obj, exc_tb = sys.exc_info()
 		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
 		print(exc_type, fname, exc_tb.tb_lineno)
 		print(e)
-	return ''
+	# data fetched successfully
+	print("File content =",filedata)
+	for k, v in formData.items():
+		print(f'{k}={v}')
+
+	###########################################################################
+	# check abs_path and loaction for storing the data from request
+	fileExtension = ''
+	fileMode = 'a'
+	try:
+		# for images open file in binary
+		# fileMode= 'ab'
+		
+		# check if file present or no - give404 not found error
+		p = config.ServerRoot + config.StoreFile + abs_path
+		# check if path present or else create one
+		if not os.path.isdir(p):
+			os.mkdir(p)
+		if (p.strip())[-1] != '/':
+			p = p + '/'
+		# store in this file
+		p=p+'post_request.txt'
+
+		filename = (p.split('/')[-1]).strip()
+		# check if the file exists or create
+		#if not os.path.isfile(p):
+		mfile = open(p, fileMode)
+		# file has been found  or created
+		# check permission - file is writable - forbidden error
+		if not os.access(p, os.W_OK):
+			http_resp['status_code'] = 403
+			http_resp['status_msg'] = statusCode.get_status_code(403)
+			return createResponse(http_resp, method, get_ctype(filename), len(filedata)) 
+					
+		###########################################################################
+		
+		# log format - similar store in file
+		post_log = '\n\n'
+		# make changes to add ip address
+		post_log += '[' + date_time_format(True) + '] '
+		post_log += '[' + http_resp.get('version') +' '+ str(http_resp.get('status_code')) +' '+ http_resp.get('status_msg')+']\n'
+		for k, v in formData.items():
+			post_log += k + ': ' + v + '\n'
+		post_log += 'file-data: ' 
+		mfile.write(post_log)
+		mfile.write(str(filedata))	#think
+		mfile.close()
+		
+	except Exception as e:
+		print("Post request error")
+		exc_type, exc_obj, exc_tb = sys.exc_info()
+		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+		print(exc_type, fname, exc_tb.tb_lineno)
+		print(e)
+
+	post_response = '<html><h2>POST Request Successful!!!</h2></html>'
+	resp = createResponse(http_resp, method, 'text/html', len(post_response)) + post_response
+	return resp
 
 def PUT_Request(http_resp, method, abs_path, httpversion, headers, req_body = b''):
 	#update an existing resource on the server
@@ -355,14 +418,68 @@ def DELETE_Request(http_resp, method, abs_path, httpversion, headers):
 	#A successful response MUST be 200 (OK) if the server response includes a message body, 
 	# 202 (Accepted) if the DELETE action has not yet been performed, or 
 	#204 (No content) if the DELETE action has been completed but the response does not have a message body.
+	# restricting the files or folders to be deleted to one folder
+	path = config.ServerRoot + config.FetchFile + '/deletefiles'
+	fileExtension = ''
+	filename =''
+	if '.' in abs_path:
+		fileExtension = (abs_path.split('.'))[-1]
+	else:
+		fileExtension = 'txt'
+	
+	# check if file present or no - give404 not found error
+	p = path + abs_path
+	# entire directory is to be deleted
+	if os.path.isdir(p):
+		if (p.strip())[-1] != '/':
+			# then delete the text.txt file present
+			p = p + '/'
+		p=p+'test.txt'
 
-	pass
+	filename = (p.split('/')[-1]).strip()
+	# check if the file exists
+	if not os.path.isfile(p):
+		# 404 not found error
+		http_resp['status_code'] = 404
+		http_resp['status_msg'] = statusCode.get_status_code(404)
+	else:	
+		# file has been found
+		# check permission - file is deletable
+		if not os.access(p, os.W_OK):
+			http_resp['status_code'] = 403
+			http_resp['status_msg'] = statusCode.get_status_code(403)
+		else:
+			try:
+				os.remove(p)
+			except:
+				#print("os.remove error")
+				http_resp['status_code'] = 202
+				http_resp['status_msg'] = statusCode.get_status_code(202)
+				msg = '<html><body><h2>Delete request accepted!!!<br> 202 : Accepted</h2></body></html>'
+				resp = createResponse(http_resp, method, 'text/html', len(msg)) + msg
+				return resp
+			# successful deletion
+			http_resp['status_code'] = 200
+			http_resp['status_msg'] = statusCode.get_status_code(200)
+
+	msg = '<html><body><h2>Delete request successful!!!</h2></body></html>'
+	if http_resp.get('status_code') == 200:
+		resp = createResponse(http_resp, method, 'text/html', len(msg)) + msg
+	else:
+		resp = createResponse(http_resp, method)
+	return resp
+				
+
+	
 
 # check for errors in request
 # msg_body is for post put
 # return True is request is valid 
 # False for invalid, error
 def checkRequest(http_resp, method, abs_path, httpversion, headers, req_body = ""):
+	# error found in splitRequest function
+	if http_resp['status_code'] != 200:
+		return False
 	if httpversion.strip() != 'HTTP/1.1':
 		http_resp['status_code'] = 505
 		http_resp['status_msg'] = statusCode.get_status_code(505)
@@ -383,9 +500,8 @@ def connHeader():
 def handleRequest(s, ip, recv_msg):
 	global response
 	print("Handle request function started . . . ")
-	method, abs_path, httpversion, headers, req_body = splitRequest(s, recv_msg)
-
 	http_resp = response.copy()
+	method, abs_path, httpversion, headers, req_body = splitRequest(http_resp, s, recv_msg)
 	isReqValid =checkRequest(http_resp, method, abs_path, httpversion, headers, req_body)
 	try:
 		if isReqValid:
@@ -458,6 +574,10 @@ def clientRequests(client):
 		except Exception as e:
 			print("Error: clientRequests function")
 			# add error log
+			exc_type, exc_obj, exc_tb = sys.exc_info()
+			fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+			print(exc_type, fname, exc_tb.tb_lineno)
+			print(e)
 			print(e)
 			break
 	return

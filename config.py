@@ -5,7 +5,7 @@ import os, stat
 ServerRoot = str(Path().absolute())+'/'
 
 # fetch file location - get, head
-FetchFile = 'responsefiles'
+FetchFile = 'clientfiles'
 
 #store file location - post, put
 StoreFile = 'serverfiles'

@@ -105,6 +105,9 @@ server configuration
 DocumentRoot
  log file pathname
 
+clientfiles = files for request like GET, HEAD - meant for client
+serverfiles = files came with POST, PUT - meant for server
+
 ###########################################################3
 handle all status codes
 handle diff type of media - pdf, upload, mkv jpg
@@ -193,7 +196,7 @@ Python Check if Directory Exists
 path. isdir() method checks if a directory exists. It returns False if you specify a path to a file or a directory that does not exist. If a directory exists, isdir() returns True
 isfile()
 access() - permission
-
+os.access(fnm, os.W_OK)
 
 Call os.chmod(path, mode) to change the file permissions to mode for the file located at path.
 
@@ -276,7 +279,7 @@ application/vnd.mozilla.xul+xml
 
 ========================================================================================
 
-POST form
+###################   POST form
 
 
 You need enctype="multipart/form-data" otherwise you will load only the file name and not the data.
@@ -303,3 +306,55 @@ b'\r\nContent-Disposition: form-data; name="nameoffile"; filename="test.odt"\r\n
 2]  application/x-www-form-urlencoded, the name-value pairs are separated by '&' and the names and values are separated by '='. The spaces between the texts are replaced by a '+' and non-alphanumeric characters are %-encoded. Here, parsing is pretty straight-forward and wouldn't be tough to handle.
 
 A space is assigned number 32, which is 20 in hexadecimal. When you see “%20,” it represents a space in an encoded URL
+
+## POST request file storing
+
+parent resource is not found
+404 NOT FOUND seems to be an appropriate response
+https://softwareengineering.stackexchange.com/questions/364590/what-is-a-proper-response-status-code-to-post-when-parent-resource-is-not-found
+
+
+os.mkdir() method in Python is used to create a directory named path
+
+########### ###################### PUT METHOD
+
+The PUT method requests that the enclosed entity be stored under the supplied URI. If the URI refers to an already existing resource, it is modified and if the URI does not point to an existing resource, then the server can create the resource with that URI.
+
+
+###################################   DELETE METHOD
+
+os.remove() method in Python is used to remove or delete a file path. This method can not remove or delete a directory. If the specified path is a directory then OSError will be raised by the method. os.rmdir() can be used to remove directory.
+
+
+
+
+##############################################################################################################
+
+											STATUS CODE - FIND ERRORS
+
+1] HTTP 415 Unsupported Media Type client error response code indicates that the server refuses to accept the request because the payload format is in an unsupported format. 
+
+2] 411
+
+3] 404
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
