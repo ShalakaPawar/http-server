@@ -67,6 +67,12 @@ dprintf(level of printing, print statement) - while executing then if specified 
 
 REFER apache login
 
+
+127.0.0.1 - - [05/Nov/2021:21:28:40 +0530] "GET /phpmyadmin/themes/dot.gif HTTP/1.1" 200 325 "-" "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:91.0) Gecko/20100101 Firefox/91.0"
+
+
+IP address - - Data "Request status line" "response status line" PID "-" Host 
+
 ###########################################################3
 
 handlng file permissions
@@ -325,6 +331,31 @@ The PUT method requests that the enclosed entity be stored under the supplied UR
 
 os.remove() method in Python is used to remove or delete a file path. This method can not remove or delete a directory. If the specified path is a directory then OSError will be raised by the method. os.rmdir() can be used to remove directory.
 
+
+
+################################   COOKIES
+
+basics of UUID. UUID module comes with the python standard library therefore, you don't need to install anything.
+creating a unique random id. To create a random id, you call the uuid4 () method and it will automatically generate a unique id for you just as shown in the example below; ...
+
+The SameSite attribute of the Set-Cookie HTTP response header allows you to declare if your cookie should be restricted to a first-party or same-site context.
+The cookie-sending behavior if SameSite is not specified is SameSite=Lax. Previously the default was that cookies were sent for all requests.
+Cookies with SameSite=None must now also specify the Secure attribute (they require a secure context/HTTPS).
+Strict
+Cookies will only be sent in a first-party context and not be sent along with requests initiated by third party websites.
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
+
+After receiving an HTTP request, a server can send one or more Set-Cookie headers with the response.
+
+The Set-Cookie HTTP response header sends cookies from the server to the user agent. A simple cookie is set like this:
+
+Set-Cookie: <cookie-name>=<cookie-value>
+
+Note: When you set an Expires date and time, they're relative to the client the cookie is being set on, not the server.
+
+https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
+
+Same-Site:Strict
 
 
 

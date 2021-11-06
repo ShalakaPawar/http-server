@@ -10,6 +10,12 @@ FetchFile = 'clientfiles'
 #store file location - post, put
 StoreFile = 'serverfiles'
 
+# store cookie numbers
+CookieDir = ServerRoot + 'cookiefile'
+CookieFile = CookieDir + '/cookiefile.txt'
+#print(CookieFile)
+#print(os.path.exists(CookieFile))
+
 # port number of server
 PORT = 2000
 
@@ -29,10 +35,10 @@ KeepAliveTimeout = 5
 #
 #ErrorLog ${APACHE_LOG_DIR}/error.log
 # store in logfiles folder
-ErrorLog = ServerRoot + '/logfiles/errorlog.log'
+ErrorLog = ServerRoot + 'logfiles/errorlog.log'
 
 # contains log of all the requests
-AccesLog = ServerRoot + '/logfiles/accesslog.log'
+AccesLog = ServerRoot + 'logfiles/accesslog.log'
 
 # format
 # clientIP date_time request_method response_status resp_message content-length 

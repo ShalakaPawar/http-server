@@ -6,6 +6,7 @@ import time
 import os
 import email.utils
 import binascii
+from uuid import uuid4
 
 import mimetypes
 # global variables
@@ -33,24 +34,69 @@ response = {
 def date_time_format(local_time = False):
 	return email.utils.formatdate(timeval = None, localtime = local_time, usegmt = False)
 
+
+#server will create a cookie 
+#create a random number - save in file and necessary info 
+#on client request identify if this is 1st access or no
+def createCookie(ip_addr, http_resp):
+	cookie_dict = dict()
+	# Set-Cookie: <em>value</em>[; expires=<em>date</em>][; domain=<em>domain</em>][; path=<em>path</em>][; secure]
+	cookiedir = config.CookieDir
+	cookiefile = config.CookieFile
+	# if cookie directory and file not present then create
+	if not os.path.exists(cookiedir):
+		os.mkdir(cookiedir)
+	if not os.path.exists(cookiefile):
+		f = open(cookiefile, 'w')
+		f.close()
+	# load the text file into dictionary
+	try:
+		with open(cookiefile, 'r') as cfile:
+			for line in cfile:
+				pairs = line.strip('{').strip('\n').strip('}').split(':')
+				client_ip, cookie_id = [i.strip().strip("'") for i in pairs]
+				# dictionary{ key (ip) : value (cookie) }
+				cookie_dict[client_ip] = cookie_id	
+	except Exception as e:
+		print("\nError creating file", e)
+	print("\nCookie_dict = ", cookie_dict)
+	# cookie dictionary is created
+	# check if already cookie present
+	if cookie_dict.get(ip_addr, None) is None:
+		# create new cookie
+		cookie_id = str(uuid4())
+		client_ip = str(ip_addr)
+		print('{ ' + '{}: {}'.format(client_ip, cookie_id) + ' }')
+		with open(cookiefile, 'a') as cfile:
+			cfile.write('{ ' + '{}: {}'.format(client_ip, cookie_id) + ' }\n')
+		return cookie_id
+	else:
+		# already present - return cookie_id
+		return cookie_dict.get(ip_addr)
+	
+
 # status code 404 - html message
 def error_display(http_resp):
+	flag = False
 	msg = ''
 	if http_resp['status_code']//100 != 2:
+		flag = True
 		msg = '<html><h2>{}: {}</h2></html>'.format(http_resp['status_code'], statusCode.get_status_code(http_resp['status_code']))
 		http_resp['Content-Length'] = len(msg)
 		http_resp['Content-Type'] = 'text/html'
-	return msg
+	return msg, flag
 
 # add required parameters
 # need method for POST, PUT
-def createResponse(http_resp, method, cType= 'text/html', cLength = 0):
+def createResponse(ip, http_resp, method, cType= 'text/html', cLength = 0):
 	#response['statusCode'] = statusCode			# already added outside
 	#response['statusResp'] = statusCode.get_status_code(statusCode)
 	http_resp['Date'] = str(date_time_format(False))
 	http_resp['Content-Type'] = cType
 	http_resp['Content-Length']=cLength
-	m = error_display(http_resp)
+	m, flag = error_display(http_resp)
+	if not flag:
+		http_resp['Set-Cookie'] = createCookie(ip, http_resp)
 	if len(m)> 0:	
 		http_resp['Content-Length'] = len(m)
 	http_response = ""
@@ -164,18 +210,9 @@ def get_ctype(filename):
 #	text/xml    
 	return mimetypes.MimeTypes().guess_type(filename)[0]
 
-#server will create a cookie 
-#create a random number - save in file and necessary info 
-#on client request identify if this is 1st access or no
-def createCookie(ip_addr, http_resp):
-	# Set-Cookie: <em>value</em>[; expires=<em>date</em>][; domain=<em>domain</em>][; path=<em>path</em>][; secure]
-	value =  str(random.randint(1, 150000))
-	expiry = 0	# change this
-	return
-
 # for images open file in binary
 # return get response with file
-def GET_Request(http_resp, method, abs_path, httpversion, headers):
+def GET_Request(ip, http_resp, method, abs_path, httpversion, headers):
 #	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}")
 #	print("Headers:")
 #	for k, v in headers.items():
@@ -229,11 +266,11 @@ def GET_Request(http_resp, method, abs_path, httpversion, headers):
 		print(exc_type, fname, exc_tb.tb_lineno)
 		print(e)
 			
-	resp = createResponse(http_resp, method, get_ctype(filename), len(filedata)) + filedata
+	resp = createResponse(ip, http_resp, method, get_ctype(filename), len(filedata)) + filedata
 	return resp
 
 
-def HEAD_Request(http_resp, method, abs_path, httpversion, headers):
+def HEAD_Request(ip, http_resp, method, abs_path, httpversion, headers):
 	fileExtension = ''	
 	file_path = ''
 	filedata = ''
@@ -274,11 +311,11 @@ def HEAD_Request(http_resp, method, abs_path, httpversion, headers):
 				http_resp['status_code'] = 404
 				http_resp['status_msg'] = statusCode.get_status_code(404)
 				filedata = ''
-	resp = createResponse(http_resp, method, get_ctype(filename), len(filedata))
+	resp = createResponse(ip, http_resp, method, get_ctype(filename), len(filedata))
 	return resp
 
 # A POST request is typically sent via an HTML form and results in a change on the server.
-def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b''):
+def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body = b''):
 	"""	
 	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nrequest body:{req_body}")
 	print("Headers:")
@@ -382,7 +419,7 @@ def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b
 		if not os.access(p, os.W_OK):
 			http_resp['status_code'] = 403
 			http_resp['status_msg'] = statusCode.get_status_code(403)
-			return createResponse(http_resp, method, get_ctype(filename), len(filedata)) 
+			return createResponse(ip, http_resp, method, get_ctype(filename), len(filedata)) 
 					
 		###########################################################################
 		
@@ -406,15 +443,15 @@ def POST_Request(http_resp, method, abs_path, httpversion, headers, req_body = b
 		print(e)
 
 	post_response = '<html><h2>POST Request Successful!!!</h2></html>'
-	resp = createResponse(http_resp, method, 'text/html', len(post_response)) + post_response
+	resp = createResponse(ip, http_resp, method, 'text/html', len(post_response)) + post_response
 	return resp
 
-def PUT_Request(http_resp, method, abs_path, httpversion, headers, req_body = b''):
+def PUT_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body = b''):
 	#update an existing resource on the server
 	pass
 
 
-def DELETE_Request(http_resp, method, abs_path, httpversion, headers):
+def DELETE_Request(ip, http_resp, method, abs_path, httpversion, headers):
 	#A successful response MUST be 200 (OK) if the server response includes a message body, 
 	# 202 (Accepted) if the DELETE action has not yet been performed, or 
 	#204 (No content) if the DELETE action has been completed but the response does not have a message body.
@@ -456,7 +493,7 @@ def DELETE_Request(http_resp, method, abs_path, httpversion, headers):
 				http_resp['status_code'] = 202
 				http_resp['status_msg'] = statusCode.get_status_code(202)
 				msg = '<html><body><h2>Delete request accepted!!!<br> 202 : Accepted</h2></body></html>'
-				resp = createResponse(http_resp, method, 'text/html', len(msg)) + msg
+				resp = createResponse(ip, http_resp, method, 'text/html', len(msg)) + msg
 				return resp
 			# successful deletion
 			http_resp['status_code'] = 200
@@ -464,9 +501,9 @@ def DELETE_Request(http_resp, method, abs_path, httpversion, headers):
 
 	msg = '<html><body><h2>Delete request successful!!!</h2></body></html>'
 	if http_resp.get('status_code') == 200:
-		resp = createResponse(http_resp, method, 'text/html', len(msg)) + msg
+		resp = createResponse(ip, http_resp, method, 'text/html', len(msg)) + msg
 	else:
-		resp = createResponse(http_resp, method)
+		resp = createResponse(ip, http_resp, method)
 	return resp
 				
 
@@ -502,24 +539,29 @@ def handleRequest(s, ip, recv_msg):
 	print("Handle request function started . . . ")
 	http_resp = response.copy()
 	method, abs_path, httpversion, headers, req_body = splitRequest(http_resp, s, recv_msg)
+	print(f"\nMethod:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nrequest body:{req_body}")
+	print("Headers:")
+	for k, v in headers.items():
+		print(k, v)
+	
 	isReqValid =checkRequest(http_resp, method, abs_path, httpversion, headers, req_body)
 	try:
 		if isReqValid:
 			if method == 'GET':
-				resp = GET_Request(http_resp, method, abs_path, httpversion, headers)
+				resp = GET_Request(ip, http_resp, method, abs_path, httpversion, headers)
 				print(resp, type(resp))
 			elif method == 'HEAD':
-				resp = HEAD_Request(http_resp, method, abs_path, httpversion, headers)
+				resp = HEAD_Request(ip, http_resp, method, abs_path, httpversion, headers)
 			elif method == 'POST':
-				resp = POST_Request(http_resp, method, abs_path, httpversion, headers, req_body)
+				resp = POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body)
 			elif method == 'PUT':
-				resp = PUT_Request(http_resp, method, abs_path, httpversion, headers, req_body)
+				resp = PUT_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body)
 			elif method == 'DELETE':
-				resp = DELETE_Request(http_resp, method, abs_path, httpversion, headers)
+				resp = DELETE_Request(ip, http_resp, method, abs_path, httpversion, headers)
 		# request is not valid
 		else:
 			print("Invalid request")
-			resp = createResponse(http_resp, method)	# send parameters - make changes to function
+			resp = createResponse(ip, http_resp, method)	# send parameters - make changes to function
 	except Exception as e:
 		print("Handle request error")
 		print(e)
@@ -529,7 +571,7 @@ def handleRequest(s, ip, recv_msg):
 		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
 		print(exc_type, fname, exc_tb.tb_lineno)
 		print(e)
-		resp = createResponse(http_resp, method)
+		resp = createResponse(ip, http_resp, method)
 		# add in error log
 	return resp
 
@@ -555,7 +597,7 @@ def clientRequests(client):
 			recv_msg = s.recv(4096)
 			#print(request)
 
-			response = handleRequest(s, ip, recv_msg)
+			response = handleRequest(s, ip[0], recv_msg)
 			print("\nResponse:")
 			print(response)
 			s.send(response.encode('ISO-8859-1'))
