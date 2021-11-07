@@ -59,14 +59,14 @@ def createCookie(ip_addr, http_resp):
 				cookie_dict[client_ip] = cookie_id	
 	except Exception as e:
 		print("\nError creating file", e)
-	print("\nCookie_dict = ", cookie_dict)
+	#print("\nCookie_dict = ", cookie_dict)
 	# cookie dictionary is created
 	# check if already cookie present
 	if cookie_dict.get(ip_addr, None) is None:
 		# create new cookie
 		cookie_id = str(uuid4())
 		client_ip = str(ip_addr)
-		print('{ ' + '{}: {}'.format(client_ip, cookie_id) + ' }')
+		#print('{ ' + '{}: {}'.format(client_ip, cookie_id) + ' }')
 		with open(cookiefile, 'a') as cfile:
 			cfile.write('{ ' + '{}: {}'.format(client_ip, cookie_id) + ' }\n')
 		return cookie_id
@@ -111,6 +111,76 @@ def createResponse(ip, http_resp, method, cType= 'text/html', cLength = 0):
 	http_response = first_line + http_response
 	#print("http-response=\n",http_response)
 	return http_response
+
+
+# [time] [client-ip] [pid] [request] [response]
+def AccessLog(ip, http_resp, method, abs_path):
+	date = str(date_time_format(True))
+	req_line = str(method) + ' ' + str(abs_path) + ' ' + str(http_resp.get('version')) 
+	resp_line = str(http_resp.get('status_code')) +' '+ str(http_resp.get('status_msg'))
+	pid = str(os.getpid())
+	accesslog = '[{}] [{}] [pid {}] [{}] [{}]'.format(date, ip, pid, req_line, resp_line)  
+	
+	# avoid overeriding or not updated info in shared file
+	lock = threading.lock()
+
+	# check if access log file exists
+	try:
+		lock.aquire()
+		if not os.path.exists(config.LogFolder):
+			os.mkdir(config.LogFolder)
+		accessfile = config.AccessLog
+		if not os.path.exists(accessfile):
+			# creates a new empty file
+			with open(accessfile, 'w+') as f:
+				pass
+	except Exception as e:
+		print(e)
+		print('creating access log file')
+		return
+
+	with open(accessfile, 'a+') as f:
+		f.write('\n')
+		f.write(accesslog)
+	lock.release()
+	print(accesslog)
+	return
+	
+
+# Format = [time] [client-ip] [loglevel] [pid] [request] [response] [error_message]
+def ErrorLog(ip, http_resp, method, abs_path, level = '', error = ''):
+	date = str(date_time_format(True))
+	req_line = str(method) + ' ' + str(abs_path) + ' ' + str(http_resp.get('version')) 
+	resp_line = str(http_resp.get('version')) +' '+ str(http_resp.get('status_code')) +' '+ str(http_resp.get('status_msg'))
+	pid = str(os.getpid())
+	errorlog = '[{}] [{}] [{}] [pid {}] [{}] [{}] [{}]'.format(date, ip, level, pid, req_line, resp_line, error) 
+	print(errorlog)
+	lock = threading.lock()
+	# check if access log file exists
+	try:
+		lock.acquire()
+		if not os.path.exists(config.LogFolder):
+			os.mkdir(config.LogFolder)
+		errorfile = config.ErrorLog
+		if not os.path.exists(errorfile):
+			# creates a new empty file
+			with open(errorfile, 'w+') as f:
+				pass
+	except Exception as e:
+		print(e)
+		print('creating error log file')
+		return
+	
+	with open(errorfile, 'a+') as f:
+		f.write('\n')
+		f.write(errorlog)
+	lock.release()
+	return
+
+# Server Error - occured in main functions - during accept client
+#def ServerError(status_code = 500, error = ''):
+	
+	
 
 # returns method, abs_path, httpversion, headers, msg
 def splitRequest(http_resp, client_socket, recv_msg):
@@ -612,15 +682,16 @@ def clientRequests(client):
 				s.close()
 				break
 		except KeyboardInterrupt:
+			print("Quitting . . .")
             		break
 		except Exception as e:
-			print("Error: clientRequests function")
-			# add error log
-			exc_type, exc_obj, exc_tb = sys.exc_info()
-			fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-			print(exc_type, fname, exc_tb.tb_lineno)
+#			print("Error: clientRequests function")
+#			# add error log
+#			exc_type, exc_obj, exc_tb = sys.exc_info()
+#			fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+#			print(exc_type, fname, exc_tb.tb_lineno)
 			print(e)
-			print(e)
+			ErrorLog('error', e)
 			break
 	return
 
@@ -636,6 +707,9 @@ if __name__ == "__main__":
 
 	while True:
 		try:
+			if threading.active_count() > config.MaxRequest:
+				print("Server is busy\nRetry after few seconds . . .")
+				time.sleep(5)
 			clientSocket, addr = serverSocket.accept()
 			client = (clientSocket, addr)
 			print('\nNew request received from ', end=""); print(client[1]);
@@ -643,14 +717,15 @@ if __name__ == "__main__":
 			th.start()
 			client_threads.append(th)
 		except KeyboardInterrupt:
+			print("Quitting . . .")
 			break
 		except Exception as e:
-			print("\nsome error - main")
-			print(e)
+			print("\nserver error")
+			ErrorLog('error', e)
 			break
 			
-		# join threads 
-		for t in client_threads:
-			t.join()
-	
+	# join threads 
+	for t in client_threads:
+		t.join()
+	print("Successfully stopped server")
 	serverSocket.close()

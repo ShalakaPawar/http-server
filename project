@@ -31,6 +31,8 @@ headers: almost all the headers
 
 Multithreading - 
 
+The return type of this method is <class 'int'>, it returns the number of active Thread class objects at any instant.
+
 ###########################################################3
 
 COOKIES: resp of browser, server should keep cookie live
@@ -158,6 +160,10 @@ ErrorLogFormat "[%t] [%l] [pid %P] %F: %E: [client %a] %M"
 
 example: [Thu May 12 08:28:57.652118 2011] [core:error] [pid 8777:tid 4326490112] [client ::1:58619] File does not exist: /usr/local/apache2/htdocs/favicon.ico
 
+https://www.loggly.com/ultimate-guide/access-and-error-logs/
+[quote]LogFormat "%h %l %u %t "%r" %>s %b "%{Referer}i" "%{User-agent}i"" combined CustomLog log/access_log combined[/quote]
+
+https://stackoverflow.com/questions/919897/how-to-obtain-a-thread-id-in-python
 
 
 Log level:
@@ -167,12 +173,20 @@ info	Informational.	"Server seems busy, (you may need to increase StartServers, 
 debug	Debug-level messages	"Opening config file ..."
 
 
+The threading module of Python includes locks as a synchronization tool. A lock has two states:
+
+locked
+unlocked
+A lock can be locked using the acquire() method. Once a thread has acquired the lock, all subsequent attempts to acquire the lock are blocked until it is released. The lock can be released using the release() method.
+
+33############################################  config
+
+
 The TimeOut directive defines the length of time Apache httpd will wait for I/O in various circumstances:
 
 DocumentRoot Directive:
 This directive sets the directory from which httpd will serve files. 
 he server appends the path from the requested URL to the document root to make the path to the document. 
-
 
 
 ################################################
@@ -358,6 +372,10 @@ https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
 Same-Site:Strict
 
 
+################################################    LOG FILES
+
+The Referer header allows a server to identify a page where people are visiting it from. This data can be used for analytics, logging, optimized caching, and more.
+
 
 ##############################################################################################################
 
@@ -371,6 +389,19 @@ Same-Site:Strict
 
 
 
+
+##################################################################################################################
+
+
+												HEADERS
+
+
+1] The Sec-CH-UA-Model request header field gives a server information about the device on which a given user agent is executing.
+
+2] upgrade-insecure-requests: 
+A client's request signals to the server that it supports the upgrade mechanisms of upgrade-insecure-requests:
+
+3] The User-Agent request header is a characteristic string that lets servers and network peers identify the application, operating system, vendor, and/or version of the requesting user agent.
 
 
 
