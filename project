@@ -404,14 +404,25 @@ A client's request signals to the server that it supports the upgrade mechanisms
 3] The User-Agent request header is a characteristic string that lets servers and network peers identify the application, operating system, vendor, and/or version of the requesting user agent.
 
 
+###############################################################################################################
 
+START STOP SERVER
 
+https://stackabuse.com/executing-shell-commands-with-python/
+1]  Python allows us to immediately execute a shell command that's stored in a string using the os.system() function.
+The os.system() function executes a command, prints any output of the command to the console, and returns the exit code of the command. If we would like more fine grained control of a shell command's input and output in Python, we should use the subprocess module.
 
+2] subprocess.run() requires a list of strings as input instead of A string. The first item of the list is the name of the command. The remaining items of the list are the flags and the arguments of the command.
+separate the arguments based on space
+example ls -alh would be ["ls", "-alh"], while ls -a -l -h, would be ["ls", "-a", -"l", "-h"]
 
+3] Running a Command with Popen
+Popen is more general than subprocess. call . Popen doesn't block, allowing you to interact with the process while it's running, or continue with other things in your Python program. The call to Popen returns a Popen object
 
+https://www.geeksforgeeks.org/running-python-program-in-the-background/
+https://janakiev.com/blog/python-background/
 
-
-
+python filename.py > filenameToFlush &
 
 
 

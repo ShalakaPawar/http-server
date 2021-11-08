@@ -1,0 +1,2 @@
+
+[Mon, 08 Nov 2021 06:43:40 +0530] [127.0.0.1] [error] [pid 11172] [PUT /new/ HTTP/1.1] [HTTP/1.1 500 Internal Server Error] []

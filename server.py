@@ -6,6 +6,7 @@ import time
 import os
 import email.utils
 import binascii
+import subprocess
 from uuid import uuid4
 
 import mimetypes
@@ -122,11 +123,11 @@ def AccessLog(ip, http_resp, method, abs_path):
 	accesslog = '[{}] [{}] [pid {}] [{}] [{}]'.format(date, ip, pid, req_line, resp_line)  
 	
 	# avoid overeriding or not updated info in shared file
-	lock = threading.lock()
+	lock = threading.Lock()
 
 	# check if access log file exists
 	try:
-		lock.aquire()
+		lock.acquire()
 		if not os.path.exists(config.LogFolder):
 			os.mkdir(config.LogFolder)
 		accessfile = config.AccessLog
@@ -155,7 +156,7 @@ def ErrorLog(ip, http_resp, method, abs_path, level = '', error = ''):
 	pid = str(os.getpid())
 	errorlog = '[{}] [{}] [{}] [pid {}] [{}] [{}] [{}]'.format(date, ip, level, pid, req_line, resp_line, error) 
 	print(errorlog)
-	lock = threading.lock()
+	lock = threading.Lock()
 	# check if access log file exists
 	try:
 		lock.acquire()
@@ -178,9 +179,33 @@ def ErrorLog(ip, http_resp, method, abs_path, level = '', error = ''):
 	return
 
 # Server Error - occured in main functions - during accept client
-#def ServerError(status_code = 500, error = ''):
+def ServerError(status_code = 500, error = ''):
+	date = str(date_time_format(True))
+	pid = str(os.getpid())
+	status_msg = str(statusCode.get_status_code(status_code))
+	status_code= str(status_code)
+	errorlog = '[{}] [pid {}] [{} {}] [{}]'.format(date, pid, status_code, status_msg, error) 
+	lock = threading.Lock()
+	# check if access log file exists
+	try:
+		lock.acquire()
+		if not os.path.exists(config.LogFolder):
+			os.mkdir(config.LogFolder)
+		errorfile = config.ErrorLog
+		if not os.path.exists(errorfile):
+			# creates a new empty file
+			with open(errorfile, 'w+') as f:
+				pass
+	except Exception as e:
+		print(e)
+		print('creating error log file')
+		return
 	
-	
+	with open(errorfile, 'a+') as f:
+		f.write('\n')
+		f.write(errorlog)
+	lock.release()
+	return 
 
 # returns method, abs_path, httpversion, headers, msg
 def splitRequest(http_resp, client_socket, recv_msg):
@@ -320,6 +345,7 @@ def GET_Request(ip, http_resp, method, abs_path, httpversion, headers):
 			if not os.access(config.FetchFile + abs_path, os.R_OK):
 				http_resp['status_code'] = 403
 				http_resp['status_msg'] = statusCode.get_status_code(403)
+				ErrorLog(ip, http_resp, method, abs_path, 'error')
 			else:
 				with open(p, 'rb') as f:
 					for bline in f:
@@ -327,16 +353,17 @@ def GET_Request(ip, http_resp, method, abs_path, httpversion, headers):
 							line = bline.decode('utf-8')	
 							filedata += line
 						except UnicodeDecodeError as ex:
-							print("ignore")
+							pass
 					
 	except Exception as e:
 		print("GET request error")
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-		print(exc_type, fname, exc_tb.tb_lineno)
+#		exc_type, exc_obj, exc_tb = sys.exc_info()
+#		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+#		print(exc_type, fname, exc_tb.tb_lineno)
 		print(e)
 			
 	resp = createResponse(ip, http_resp, method, get_ctype(filename), len(filedata)) + filedata
+	AccessLog(ip, http_resp, method, abs_path)
 	return resp
 
 
@@ -368,6 +395,7 @@ def HEAD_Request(ip, http_resp, method, abs_path, httpversion, headers):
 		if not os.access(config.FetchFile + abs_path, os.R_OK):
 			http_resp['status_code'] = 403
 			http_resp['status_msg'] = statusCode.get_status_code(403)
+			ErrorLog(ip, http_resp, method, abs_path, 'error')
 		else:
 			try:
 				with open(p, 'r') as f:
@@ -382,6 +410,7 @@ def HEAD_Request(ip, http_resp, method, abs_path, httpversion, headers):
 				http_resp['status_msg'] = statusCode.get_status_code(404)
 				filedata = ''
 	resp = createResponse(ip, http_resp, method, get_ctype(filename), len(filedata))
+	AccessLog(ip, http_resp, method, abs_path)
 	return resp
 
 # A POST request is typically sent via an HTML form and results in a change on the server.
@@ -452,15 +481,16 @@ def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body
 				filedata = req_body[:]
 						
 	except Exception as e:
-		print("Post requets error")
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-		print(exc_type, fname, exc_tb.tb_lineno)
+		print("Post requests error")
+#		exc_type, exc_obj, exc_tb = sys.exc_info()
+#		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+#		print(exc_type, fname, exc_tb.tb_lineno)
+		ErrorLog(ip, http_resp, method, abs_path, 'error', e)
 		print(e)
 	# data fetched successfully
-	print("File content =",filedata)
-	for k, v in formData.items():
-		print(f'{k}={v}')
+#	print("File content =",filedata)
+#	for k, v in formData.items():
+#		print(f'{k}={v}')
 
 	###########################################################################
 	# check abs_path and loaction for storing the data from request
@@ -489,6 +519,7 @@ def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body
 		if not os.access(p, os.W_OK):
 			http_resp['status_code'] = 403
 			http_resp['status_msg'] = statusCode.get_status_code(403)
+			ErrorLog(ip, http_resp, method, abs_path, 'error')
 			return createResponse(ip, http_resp, method, get_ctype(filename), len(filedata)) 
 					
 		###########################################################################
@@ -510,15 +541,49 @@ def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body
 		exc_type, exc_obj, exc_tb = sys.exc_info()
 		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
 		print(exc_type, fname, exc_tb.tb_lineno)
+		ErrorLog(ip, http_resp, method, abs_path, 'error', e)
 		print(e)
 
 	post_response = '<html><h2>POST Request Successful!!!</h2></html>'
 	resp = createResponse(ip, http_resp, method, 'text/html', len(post_response)) + post_response
+	AccessLog(ip, http_resp, method, abs_path)
 	return resp
 
 def PUT_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body = b''):
 	#update an existing resource on the server
-	pass
+	path = config.ServerRoot
+
+	if abs_path == '/':
+		p = path + 'put.txt'
+	else:
+		p = path + abs_path[1:]
+		flag = False
+		l = abs_path.split('/')
+		for i in l[1:]:
+			if '.' in i:
+				flag = True
+				break
+			path += i
+			if not os.path.exists(path):
+				os.mkdir(path)
+		if not flag:
+			p += 'put.txt'
+	#creates file if does not exist	
+	with open(p, 'w') as mfile:
+		pass
+	if not os.access(p, os.W_OK):
+		http_resp['status_code'] = 403
+		http_resp['status_msg'] = statusCode.get_status_code(403)
+		ErrorLog(ip, http_resp, method, abs_path, 'error')
+		return createResponse(ip, http_resp, method)
+	
+	with open(p, 'w') as mfile:
+		mfile.write('\n')
+		mfile.write(str(req_body))
+	put_response = '<html><h2>PUT Request Successful!!!</h2></html>'
+	resp = createResponse(ip, http_resp, method, 'text/html', len(put_response)) + put_response
+	AccessLog(ip, http_resp, method, abs_path)
+	return resp
 
 
 def DELETE_Request(ip, http_resp, method, abs_path, httpversion, headers):
@@ -631,6 +696,7 @@ def handleRequest(s, ip, recv_msg):
 		# request is not valid
 		else:
 			print("Invalid request")
+			AccessLog(ip, http_resp, method, abs_path)
 			resp = createResponse(ip, http_resp, method)	# send parameters - make changes to function
 	except Exception as e:
 		print("Handle request error")
@@ -641,6 +707,7 @@ def handleRequest(s, ip, recv_msg):
 		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
 		print(exc_type, fname, exc_tb.tb_lineno)
 		print(e)
+		ErrorLog(ip, http_resp, method, abs_path, level = 'error', error = '')
 		resp = createResponse(ip, http_resp, method)
 		# add in error log
 	return resp
@@ -682,8 +749,8 @@ def clientRequests(client):
 				s.close()
 				break
 		except KeyboardInterrupt:
-			print("Quitting . . .")
-            		break
+			print("\nQuitting . . .")
+			break
 		except Exception as e:
 #			print("Error: clientRequests function")
 #			# add error log
@@ -691,9 +758,11 @@ def clientRequests(client):
 #			fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
 #			print(exc_type, fname, exc_tb.tb_lineno)
 			print(e)
-			ErrorLog('error', e)
+			ServerError(e)
 			break
 	return
+
+
 
 if __name__ == "__main__":
 	serverSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -707,7 +776,7 @@ if __name__ == "__main__":
 
 	while True:
 		try:
-			if threading.active_count() > config.MaxRequest:
+			if threading.active_count() > config.MaxRequests:
 				print("Server is busy\nRetry after few seconds . . .")
 				time.sleep(5)
 			clientSocket, addr = serverSocket.accept()
@@ -717,11 +786,11 @@ if __name__ == "__main__":
 			th.start()
 			client_threads.append(th)
 		except KeyboardInterrupt:
-			print("Quitting . . .")
+			print("\nQuitting . . .")
 			break
 		except Exception as e:
 			print("\nserver error")
-			ErrorLog('error', e)
+			ServerError(e)
 			break
 			
 	# join threads 
