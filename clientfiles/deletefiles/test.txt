@@ -1,1 +1,15 @@
-test
+# Python program to show working
+# of update() method in Dictionary
+
+# Dictionary with single item
+Dictionary1 = { 'A': 'Geeks'}
+
+# Dictionary before Updation
+print("Original Dictionary:")
+print(Dictionary1)
+
+# update the Dictionary with iterable
+Dictionary1.update(B = 'For')
+print("Dictionary after updation:")
+print(Dictionary1)
+
