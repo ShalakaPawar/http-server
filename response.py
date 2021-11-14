@@ -1,5 +1,6 @@
 
 from functions import *
+import datetime
 
 # status code 404 - html message
 def error_display(http_resp):
@@ -12,6 +13,22 @@ def error_display(http_resp):
 		http_resp['Content-Type'] = 'text/html'
 	return msg, flag
 
+# response type header
+# Last-Modified: <day-name>, <day> <month> <year> <hour>:<minute>:<second> GMT
+def LastModified(filepath):
+	weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+	months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" ]
+	try:
+		modified = os.path.getmtime(filepath)
+	except:
+		modified = 0	# 404 not found - caught
+	year,month,day,hour,minute,second, weekday=time.gmtime(modified)[:-2]
+	#print(time.gmtime(modified))
+	lm = "%s, %02d %s %d %02d:%02d:%02d"%(weekdays[weekday], day, months[month-1], year, hour, minute, second) + ' GMT'
+	return lm.strip()
+
+#print(LastModified('clientfiles/audio.mp3'))
+
 # add required parameters
 # need method for POST, PUT
 def createResponse(ip, http_resp, method, cType= 'text/html', cLength = 0):
@@ -19,7 +36,8 @@ def createResponse(ip, http_resp, method, cType= 'text/html', cLength = 0):
 	#response['statusResp'] = statusCode.get_status_code(statusCode)
 	http_resp['Date'] = str(date_time_format(False))
 	http_resp['Content-Type'] = cType
-	http_resp['Content-Length']=cLength
+	http_resp['Content-Length'] = cLength
+	#http_resp['ETag'] = '123456'
 	m, flag = error_display(http_resp)
 	if not flag:
 		http_resp['Set-Cookie'] = createCookie(ip, http_resp)

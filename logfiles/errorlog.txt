@@ -1,7 +1,0 @@
-
-[Mon, 08 Nov 2021 06:43:40 +0530] [127.0.0.1] [error] [pid 11172] [PUT /new/ HTTP/1.1] [HTTP/1.1 500 Internal Server Error] []
-[Tue, 09 Nov 2021 15:12:52 +0530] [pid 5247] ['latin-1' codec can't encode character '\ufeff' in position 218: ordinal not in range(256) Internal Server Error] []
-[Tue, 09 Nov 2021 15:26:23 +0530] [pid 5638] [not enough values to unpack (expected 3, got 1) Internal Server Error] []
-[Tue, 09 Nov 2021 15:26:41 +0530] [pid 5638] [not enough values to unpack (expected 3, got 1) Internal Server Error] []
-[Wed, 10 Nov 2021 00:33:16 +0530] [pid 16490] [a bytes-like object is required, not 'str' Internal Server Error] []
-[Wed, 10 Nov 2021 01:31:58 +0530] [127.0.0.1] [error] [pid 21271] [HEAD /tets.pdf HTTP/1.1] [HTTP/1.1 500 Internal Server Error] []

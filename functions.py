@@ -10,11 +10,11 @@ import subprocess
 import statusCode
 import config
 from uuid import uuid4
+from queue import PriorityQueue
 
 import mimetypes
 # global variables
 CRLF = '\r\n'
-
 
 #server will create a cookie 
 #create a random number - save in file and necessary info 
@@ -46,8 +46,8 @@ def createCookie(ip_addr, http_resp):
 				# dictionary{ key (ip) : value (cookie) }
 				cookie_dict[client_ip] = cookie_id	
 	except Exception as e:
-		print("\nError creating file", e)
-	#print("\nCookie_dict = ", cookie_dict)
+		ServerInternalError(500, e)
+
 	# cookie dictionary is created
 	# check if already cookie present
 	if cookie_dict.get(ip_addr, None) is None:
@@ -62,29 +62,6 @@ def createCookie(ip_addr, http_resp):
 		# already present - return cookie_id
 		return cookie_dict.get(ip_addr)
 	
-
-# incomplete
-def checkAcceptHeader(http_resp, accept_type, resp_type):
-	# split accept header by priority in list
-	accept_list = accept_type.split(',')
-	accept = []
-	for a in accept_list:
-		try:
-			j = a.split(';')
-			if len(j) > 1:
-				accept.append([((j[1]).split('='))[-1], j[0]])
-			else:
-				accept.append([1, j[0]])
-		except:
-			continue
-	accept.sort(key=lambda x: int(x[0]))
-	# check if resp_type in it
-	if resp_type not in accept_list:	
-		http_resp['status_code'] = 406
-		http_resp['status_msg'] = statusCode.get_status_code(406)
-		return False
-	return True
-
 
 #returns data for response Content-Type header
 def get_ctype(filename):
@@ -125,8 +102,68 @@ def get_ctype(filename):
 	extension = filename.split('.')[-1]
 	return content_types.get(extension, mimetypes.MimeTypes().guess_type(filename)[0])
 		
+
+#Accept text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9
+def get_accept(accept_header, filename):
+	# split accept header by priority in list
+	accept_list = accept_header.split(',')
+	accept_values = []
+	for a in accept_list:
+		try:
+			p = a.split(';')
+			if len(p) > 1:	
+				# q value mentioned
+				accept_values.append((float(p[-1].split('=')[-1]), p[0]))
+			else:
+				# q value = 1
+				accept_values.append((1.0, p[0]))
+		except:
+			continue
+	#print(accept_values, type(accept_values))
+	accept_values.sort(reverse=True)
+	accept = []
+	for a in accept_values:
+		accept.append(a[1].strip())
+	mime_type = get_ctype(filename)
+
+	# check for */*
+	if '*/*' in accept:
+		return True
+	# check for mime_type/*
+	for a in accept:
+		if '/*' in a and a.split('/')[0].strip() == mime_type.split('/')[0].strip():
+			return True
+	# check for mime_type/subtype
+	if mime_type in accept:
+		return True
+	return False
+
+
+# incomplete
+def get_aEncoding(encoding_header):
+	encoding_header = encoding_header.strip().split(',')
+	if 'gzip' in encoding_header or 'identity' in encoding_header or \
+			'deflate' in encoding_header or 'compress' in encoding_header:
+		return True
+	return False
+
+def generate_etag(filepath):
+	# already checked if generated
+	lastM = os.path.getmtime(filepath)
+	size = os.path.getsize(filepath)
+	name = filepath.split('/')[-1].strip()
+	if name == '':
+		name = 'index.html'
+	etag = str(lastM).strip() + name.strip() + str(size).strip()
+	#print(etag)
+	return etag
+
+#e = generate_etag('no.jpg')
+
+
 def isbytesExtension(extension = ''):
-	image_ext = ['jpeg', 'jpg', 'png', 'ico', 'gif', 'tiff', 'pdf', 'webp', 'mp3', 'wav', 'wma', 'wmv', 'mpeg', 'mp4', 'avi', '3gp', 'webm']
+	image_ext = ['jpeg', 'jpg', 'png', 'ico', 'gif', 'tiff', 'pdf', 'webp', 'mp3', 'wav', \
+				'wma', 'wmv', 'mpeg', 'mp4', 'avi', '3gp', 'webm']
 	if extension in image_ext:
 		return True
 	return False

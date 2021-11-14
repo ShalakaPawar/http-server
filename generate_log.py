@@ -8,7 +8,7 @@ def AccessLog(ip, http_resp, method, abs_path):
 	pid = str(os.getpid())
 	accesslog = '[{}] [{}] [pid {}] [{}] [{}]'.format(date, ip, pid, req_line, resp_line)  
 	
-	# avoid overeriding or not updated info in shared file
+	# avoid overriding or not updated info in shared file simultaneously
 	lock = threading.Lock()
 
 	# check if access log file exists
@@ -22,15 +22,19 @@ def AccessLog(ip, http_resp, method, abs_path):
 			with open(accessfile, 'w+') as f:
 				pass
 	except Exception as e:
-		print(e)
-		print('creating access log file')
+		http_resp['status_code'] = 500
+		http_resp['status_msg'] = statusCode.get_status_code(500)
+		ErrorLog(ip, http_resp, method, abs_path, 'error', "Error writing access log")
 		return
+
+	# clear the file after the size has exceeded a fixed length
+	if os.path.getsize(accessfile) > 50000:
+		open(accessfile,"w").close()
 
 	with open(accessfile, 'a+') as f:
 		f.write('\n')
 		f.write(accesslog)
 	lock.release()
-	print(accesslog)
 	return
 	
 
@@ -41,7 +45,6 @@ def ErrorLog(ip, http_resp, method, abs_path, level = '', error = ''):
 	resp_line = str(http_resp.get('version')) +' '+ str(http_resp.get('status_code')) +' '+ str(http_resp.get('status_msg'))
 	pid = str(os.getpid())
 	errorlog = '[{}] [{}] [{}] [pid {}] [{}] [{}] [{}]'.format(date, ip, level, pid, req_line, resp_line, error) 
-	print(errorlog)
 	lock = threading.Lock()
 	# check if access log file exists
 	try:
@@ -54,9 +57,12 @@ def ErrorLog(ip, http_resp, method, abs_path, level = '', error = ''):
 			with open(errorfile, 'w+') as f:
 				pass
 	except Exception as e:
-		print(e)
-		print('creating error log file')
+		ServerInternalError(500, "Error creating error log file")
 		return
+	
+	# clear the file after the size has exceeded a fixed length
+	if os.path.getsize(errorfile) > 50000:
+		open(errorfile,"w").close()
 	
 	with open(errorfile, 'a+') as f:
 		f.write('\n')
@@ -83,10 +89,12 @@ def ServerInternalError(status_code = 500, error = ''):
 			with open(errorfile, 'w+') as f:
 				pass
 	except Exception as e:
-		print(e)
-		print('creating error log file')
 		return
 	
+	# clear the file after the size has exceeded a fixed length
+	if os.path.getsize(errorfile) > 50000:
+		open(errorfile,"w").close()
+
 	with open(errorfile, 'a+') as f:
 		f.write('\n')
 		f.write(errorlog)

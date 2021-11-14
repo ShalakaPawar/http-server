@@ -2,18 +2,17 @@ from methods import *
 from generate_log import *
 from functions import *
 
-# create response
 # SHOULD headers in response
 response = {
 	'version': 'HTTP/1.1',
 	'status_code' : 200,
 	'status_msg': 'OK',
 	'Date': '',
-	'Server': 'http-Server',			# Server: CERN/3.0 libwww/2.17
+	'Server': 'Http-Server',			
 	'Content-Type':'text/html',
-	'Content-Length': 0
+	'Content-Length': 0,
+	'Content-Language': 'en'
 }
-
 
 # returns method, abs_path, httpversion, headers, msg
 def splitRequest(http_resp, client_socket, recv_msg):
@@ -51,11 +50,9 @@ def splitRequest(http_resp, client_socket, recv_msg):
 		if headers_dict.get('Content-Length') is None:
 			http_resp['status_code'] = 411
 			http_resp['status_msg'] = statusCode.get_status_code(411)
-			# error log
 			return method, abs_path, version, headers_dict, req_body
 
 		clength = int(headers_dict.get('Content-Length'))
-		print("Content length = ", clength)
 		while True:
 			remaining_length = clength - received_length
 			if remaining_length < 0:
@@ -66,8 +63,6 @@ def splitRequest(http_resp, client_socket, recv_msg):
 			recv_msg = recv_msg + remaining_data
 			received_length = int(len(recv_msg))
 		# now entire message is received
-		print("Length of received data =",received_length)
-		#print("\n\nmessage with extra data =",remaining_data)
 		req_body = recv_msg.split(b'\r\n\r\n')[1:]
 		delimiter = b'\r\n'
 		req_body = delimiter.join(req_body)
@@ -92,24 +87,17 @@ def checkRequest(http_resp, method, abs_path, httpversion, headers, req_body = "
 		return False
 	return True
 
-# keep alive or close
-def connHeader():
-	return True
-
 
 # parse requests
 # split request into method, path, version, headers, msg
 def handleRequest(s, ip, recv_msg):
 	global response
-	print("Handle request function started . . . ")
 	http_resp = response.copy()
 	method, abs_path, httpversion, headers, req_body = splitRequest(http_resp, s, recv_msg)
-	print(f"\nMethod:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nrequest body:{req_body}")
-	print("Headers:")
-	for k, v in headers.items():
-		print(k, v)
+	
 	# get request data handling
 	data = None	
+	connection = headers.get('Connection', None)
 	
 	isReqValid =checkRequest(http_resp, method, abs_path, httpversion, headers, req_body)
 	try:
@@ -127,71 +115,55 @@ def handleRequest(s, ip, recv_msg):
 				resp = DELETE_Request(ip, http_resp, method, abs_path, httpversion, headers)
 		# request is not valid
 		else:
-			print("Invalid request")
-			AccessLog(ip, http_resp, method, abs_path)
-			resp = createResponse(ip, http_resp, method)	# send parameters - make changes to function
+			ErrorLog(ip, http_resp, method, abs_path, level = 'error')
+			resp = createResponse(ip, http_resp, method)	
 	except Exception as e:
-		print("Handle request error")
-		print(e)
-		http_resp['status_code'] = 500
-		http_resp['status_msg'] = statusCode.get_status_code(500)
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-		print(exc_type, fname, exc_tb.tb_lineno)
-		print(e)
-		ErrorLog(ip, http_resp, method, abs_path, level = 'error', error = '')
+		ErrorLog(ip, http_resp, method, abs_path, 'error', e)
 		resp = createResponse(ip, http_resp, method)
-		# add in error log
-	return resp, data
+	return resp, data, connection
 
+
+# keep alive or close
+def get_connection(connection):
+	if connection is None:
+		return False
+	if 'keep-alive' in connection:
+		return True
+	if 'close' in connection:
+		return False
 
 
 def clientRequests(client):
 	s = client[0]
 	ip = client[1]
-	# if client dosen't send request in the given frame then close...otherwise keep connection open
-	timeout = 10
-	# which method requested
-	# persistant or non-persistant connections
 	while True:
 		try:
 			# receive request from client
-			print("Receiving client message...")
 			recv_msg = s.recv(4096)
 			#print(request)
-
-			response, data = handleRequest(s, ip[0], recv_msg)
-			print("\nResponse:")
-			print(response)
+			
+			response, data, connection = handleRequest(s, ip[0], recv_msg)
 			s.send(response.encode('ISO-8859-1'))
-			if data:
-				try:
+			if data is not None:
+				if type(data) == bytes:
 					# text files 
-					s.send(data.encode('ISO-8859-1'))
-				except:
-					# data is of bytes type
 					s.send(data)
-
-			#s.close()	# for now testing - change
+				else:
+					# data is of bytes type
+					s.send(data.encode('ISO-8859-1'))
 			# check the connection header - if alive or close
-			# write a function to check this
-			if connHeader():
-				# decide what is true
-				# close then true
-				print("Socket is closing . . .")
+			if not get_connection(connection):
 				s.close()
 				break
 		except KeyboardInterrupt:
 			print("\nQuitting . . .")
+			s.close()
+			break
+		except ValueError:
 			break
 		except Exception as e:
-#			print("Error: clientRequests function")
-#			# add error log
-#			exc_type, exc_obj, exc_tb = sys.exc_info()
-#			fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-#			print(exc_type, fname, exc_tb.tb_lineno)
-			print(e)
-			ServerInternalError(e)
+			s.close()
+			ServerInternalError(500, e)
 			break
 	return
 

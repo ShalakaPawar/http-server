@@ -5,11 +5,6 @@ from generate_log import *
 # for images open file in binary
 # return get response with file
 def GET_Request(ip, http_resp, method, abs_path, httpversion, headers):
-#	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}")
-#	print("Headers:")
-#	for k, v in headers.items():
-#		print(k, v)
-	# start with abs_path
 	# if no specific file return index.html
 	fileExtension = ''	# needed for content-type
 	file_path = ''
@@ -30,6 +25,15 @@ def GET_Request(ip, http_resp, method, abs_path, httpversion, headers):
 			p=p+'index.html'
 
 		filename = (p.split('/')[-1]).strip()
+
+		# check the accept header - 406 not acceptable
+		if headers.get('Accept') is not None:
+			if not get_accept(headers.get('Accept'), filename):
+				http_resp['status_code'] = 406
+				http_resp['status_msg'] = statusCode.get_status_code(406)
+				return createResponse(ip, http_resp, method) , filedata
+
+
 		# check if the file exists
 		if not os.path.isfile(p):
 			# 404 not found error
@@ -43,37 +47,44 @@ def GET_Request(ip, http_resp, method, abs_path, httpversion, headers):
 				http_resp['status_msg'] = statusCode.get_status_code(403)
 				ErrorLog(ip, http_resp, method, abs_path, 'error')
 			else:	
-				# check if given files are images/audio - read binary
-				if isbytesExtension(filename.split('.')[-1]):
-					isplain = False
-					filedata = b''
-					with open(p, 'rb') as f:
-						for line in f:
-							try:
-								filedata += line
-							except:
-								pass
+				# file has been found
+				
+				# check if-match header - # use and otherwise it will send no body
+				if (headers.get('If-Match', None) is not None and headers.get('If-Match').strip() == generate_etag(p)) or (headers.get('If-Modified-Since', None) is not None and headers.get('If-Modified-Since').strip() == LastModified(p)):
+					http_resp['status_code'] = 304	
+					http_resp['status_msg'] =  statusCode.get_status_code(304)
 				else:
-					with open(p, 'rb') as f:
-						for bline in f:
-							try:
-								line = bline.decode('utf-8')
-								filedata += line
-							except UnicodeDecodeError as ex:
-								pass
+					# check if given files are images/audio - read binary
+					if isbytesExtension(filename.split('.')[-1]):
+						isplain = False
+						filedata = b''
+						with open(p, 'rb') as f:
+							for line in f:
+								try:
+									filedata += line
+								except:
+									pass
+					else:
+						with open(p, 'rb') as f:
+							for bline in f:
+								try:
+									line = bline.decode('utf-8')
+									filedata += line
+								except UnicodeDecodeError as ex:
+									pass
+					http_resp['Last-Modified'] = LastModified(p)
+					http_resp['ETag'] = generate_etag(p)
 					
 	except Exception as e:
-		print("GET request error")
-#		exc_type, exc_obj, exc_tb = sys.exc_info()
-#		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-#		print(exc_type, fname, exc_tb.tb_lineno)
-		InternalServerError(e)
-		print(e)
-	
-	if not isplain:
-		resp = createResponse(ip, http_resp, method, get_ctype(filename), os.path.getsize(p))
-	resp = createResponse(ip, http_resp, method, get_ctype(filename), len(filedata))
-	AccessLog(ip, http_resp, method, abs_path)
+		ServerInternalError(500, e)
+	try:
+		if not isplain:
+			resp = createResponse(ip, http_resp, method, get_ctype(filename), os.path.getsize(p))
+		else:
+			resp = createResponse(ip, http_resp, method, get_ctype(filename), len(filedata))
+		AccessLog(ip, http_resp, method, abs_path)
+	except Exception as e:
+		ErrorLog(ip, http_resp, method, abs_path, 'error', e)
 	return resp, filedata
 
 
@@ -95,6 +106,14 @@ def HEAD_Request(ip, http_resp, method, abs_path, httpversion, headers):
 		p=p+'index.html'
 
 	filename = (p.split('/')[-1]).strip()
+
+	# check the accept header - 406 not acceptable
+	if headers.get('Accept') is not None:
+		if not get_accept(headers.get('Accept'), filename):
+			http_resp['status_code'] = 406
+			http_resp['status_msg'] = statusCode.get_status_code(406)
+			return createResponse(ip, http_resp, method) 
+
 	# check if the file exists
 	if not os.path.isfile(p):
 		# 404 not found error
@@ -108,49 +127,44 @@ def HEAD_Request(ip, http_resp, method, abs_path, httpversion, headers):
 			http_resp['status_msg'] = statusCode.get_status_code(403)
 			ErrorLog(ip, http_resp, method, abs_path, 'error')
 		else:
-			try:
-				# check if given files are images/audio - read binary
-				if isbytesExtension(filename.split('.')[-1]):
-					isplain = False
-					filedata = b''
-					with open(p, 'rb') as f:
-						for line in f:
-							try:
+			# check conditional headers
+			if (headers.get('If-Match', None) is not None and headers.get('If-Match').strip() == generate_etag(p)) or (headers.get('If-Modified-Since', None) is not None and headers.get('If-Modified-Since').strip() == LastModified(p)):
+				http_resp['status_code'] = 304	
+				http_resp['status_msg'] =  statusCode.get_status_code(304)
+			else:
+				try:
+					# check if given files are images/audio - read binary
+					if isbytesExtension(filename.split('.')[-1]):
+						isplain = False
+						filedata = b''
+						with open(p, 'rb') as f:
+							for line in f:
+								try:
+									filedata += line
+								except:
+									pass
+					else:
+						with open(p, 'r') as f:
+							for line in f:
 								filedata += line
-							except:
-								pass
-				else:
-					with open(p, 'r') as f:
-						for line in f:
-							filedata += line
+					http_resp['Last-Modified'] = LastModified(p)
+					http_resp['ETag'] = generate_etag(p)
 
-			except Exception as e:
-				print("Head request error")
-				http_resp['status_code'] = 500
-				http_resp['status_msg'] = statusCode.get_status_code(500)
-				ServerError(e)
-				filedata = ''
+				except Exception as e:
+					http_resp['status_code'] = 500
+					http_resp['status_msg'] = statusCode.get_status_code(500)
+					ServerInternalError(500, e)
+					filedata = ''
 	
 	AccessLog(ip, http_resp, method, abs_path)
 	if not isplain:
 		resp = createResponse(ip, http_resp, method, get_ctype(filename), os.path.getsize(p))
-		return resp
-	resp = createResponse(ip, http_resp, method, get_ctype(filename), len(filedata))
+	else:
+		resp = createResponse(ip, http_resp, method, get_ctype(filename), len(filedata))
 	return resp
 
 # A POST request is typically sent via an HTML form and results in a change on the server.
 def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body = b''):
-	"""	
-	print(f"Method:{method}\nabs_path:{abs_path}\nversion:{httpversion}\nrequest body:{req_body}")
-	print("Headers:")
-	for k, v in headers.items():
-		print(k, v)
-
-	print("Request body:")
-	print(len(req_body.split(b'\r\n')))
-	for i in req_body.split(b'\r\n'):
-		print(i)
-	"""
 	formData = {}		# save as key value pair
 	field_name = filename = field_value = None
 	filedata = req_body
@@ -160,9 +174,7 @@ def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body
 		if headers.get('Content-Type') is not None:
 			ctype = headers.get('Content-Type')
 			if 'application/x-www-form-urlencoded' in ctype:
-				print("application/x-www")
 				for pair in req_body.split(b'&'):
-					print(pair)	
 					if b'+' in pair:
 						# replaces all occurences in pair
 						pair.replace(b'+', b' ')	
@@ -175,7 +187,7 @@ def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body
 							r = bytes.fromhex(v)
 							pair.replace(v, r)
 					field_name, field_value = pair.split(b'=')
-					formData[field_name] = field_value
+					formData[field_name.decode()] = field_value.decode()
 						 
 			elif 'multipart/form-data' in ctype:
 				boundary = ctype[ctype.rfind('-')+1:].strip()
@@ -202,30 +214,19 @@ def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body
 				for body in req_body:
 					index += 1
 					key, value = body.split(b"=")
-					formData[key] = value
+					formData[key.decode()] = value.decode()
 				filedata = req_body[:]
 						
 	except Exception as e:
-		print("Post requests error")
-#		exc_type, exc_obj, exc_tb = sys.exc_info()
-#		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-#		print(exc_type, fname, exc_tb.tb_lineno)
 		ErrorLog(ip, http_resp, method, abs_path, 'error', e)
-		print(e)
-	# data fetched successfully
-#	print("File content =",filedata)
-#	for k, v in formData.items():
-#		print(f'{k}={v}')
 
-	###########################################################################
+	# data fetched successfully
 	# check abs_path and loaction for storing the data from request
 	fileExtension = ''
 	fileMode = 'a'
 	try:
 		# for images open file in binary
-		# fileMode= 'ab'
-		
-		# check if file present or no - give404 not found error
+		# file path
 		p = config.ServerRoot + config.StoreFile + abs_path
 		# check if path present or else create one
 		if not os.path.isdir(p):
@@ -237,7 +238,6 @@ def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body
 
 		filename = (p.split('/')[-1]).strip()
 		# check if the file exists or create
-		#if not os.path.isfile(p):
 		mfile = open(p, fileMode)
 		# file has been found  or created
 		# check permission - file is writable - forbidden error
@@ -246,12 +246,9 @@ def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body
 			http_resp['status_msg'] = statusCode.get_status_code(403)
 			ErrorLog(ip, http_resp, method, abs_path, 'error')
 			return createResponse(ip, http_resp, method, get_ctype(filename), len(filedata)) 
-					
-		###########################################################################
+			
 		
-		# log format - similar store in file
 		post_log = '\n\n'
-		# make changes to add ip address
 		post_log += '[' + date_time_format(True) + '] '
 		post_log += '[' + http_resp.get('version') +' '+ str(http_resp.get('status_code')) +' '+ http_resp.get('status_msg')+']\n'
 		for k, v in formData.items():
@@ -262,13 +259,9 @@ def POST_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body
 		mfile.close()
 		
 	except Exception as e:
-		print("Post request error")
-		exc_type, exc_obj, exc_tb = sys.exc_info()
-		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-		print(exc_type, fname, exc_tb.tb_lineno)
 		ErrorLog(ip, http_resp, method, abs_path, 'error', e)
-		print(e)
 
+	http_resp['ETag'] = generate_etag(p)
 	post_response = '<html><h2>POST Request Successful!!!</h2></html>'
 	resp = createResponse(ip, http_resp, method, 'text/html', len(post_response)) + post_response
 	AccessLog(ip, http_resp, method, abs_path)
@@ -301,11 +294,19 @@ def PUT_Request(ip, http_resp, method, abs_path, httpversion, headers, req_body 
 		http_resp['status_msg'] = statusCode.get_status_code(403)
 		ErrorLog(ip, http_resp, method, abs_path, 'error')
 		return createResponse(ip, http_resp, method)
+
+	# check the etag header
+	if headers.get('If-None-Match', None) is not None and headers.get('If-None-Match') != generate_etag(p):
+		http_resp['status_code'] = 412
+		http_resp['status_msg'] = statusCode.get_status_code(412)
+		ErrorLog(ip, http_resp, method, abs_path, 'error')
+		return createResponse(ip, http_resp, method)
 	
 	with open(p, 'w') as mfile:
 		mfile.write('\n')
 		mfile.write(str(req_body))
 	put_response = '<html><h2>PUT Request Successful!!!</h2></html>'
+	http_resp['ETag'] = generate_etag(p)
 	resp = createResponse(ip, http_resp, method, 'text/html', len(put_response)) + put_response
 	AccessLog(ip, http_resp, method, abs_path)
 	return resp

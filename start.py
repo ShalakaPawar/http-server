@@ -1,14 +1,11 @@
-import sys, os
-import subprocess
+import sys
+import os
 # server keeps working in the background
 
-# kill all instances before starting - 
-# https://unix.stackexchange.com/questions/50555/kill-many-instances-of-a-running-process-with-one-command
 def StartServer():
 	try:
 		print("Starting server . . ")
-		subprocess.Popen(['python3', 'server.py'])
-		# ps ax | grep server.py
+		os.system("python3 httpserver.py &")
 		print("Server has started")
 	except KeyboardInterrupt:
 		sys.exit(1)

@@ -1,20 +1,14 @@
-import sys, os
-import subprocess
-# server keeps working in the background
-
-
-#You can find the process and its process Id with this command:
-#ps ax | grep test.py
-##ps ax | grep filename.py
-## python -u filename.py > FileToFlush &
-
-#It is also possible to kill the process by using pkill, but make sure you check if there is not a different script running with the same name:
-#pkill -f test.py
+import sys
+import os
+import signal
 
 def StopServer():
 	try:
 		print("Closing Server . . .")
-		subprocess.Popen.terminate()
+		# kills all running processes
+		for process in os.popen(f"ps ax | grep httpserver.py | grep -v grep"):
+            		pid = process.split()[0]
+            		os.kill(int(pid), signal.SIGKILL)
 		print("Server has been closed")
 	except KeyboardInterrupt:
 		sys.exit(1)

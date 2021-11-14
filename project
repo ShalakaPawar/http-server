@@ -95,13 +95,22 @@ stop-start-restart
 
 sudo service apache start
 ---stop
-bindong released
 
 python3 ./httserver.py start
 ---  stop
 --- restart
 
+#You can find the process and its process Id with this command:
+#ps ax | grep test.py
+##ps ax | grep filename.py
 
+
+The command ps -ax displays yours as well as other users' processes. grep matches lines which match a regular expression.
+grep -v "grep" takes input line by line, and outputs only the lines in which grep does not appear. Without -v, it would output only the lines in which grep does appear. See man grep for details.
+As far as the grep utility is itself concerned, it's unimportant that the pattern grep passed to it as an argument is the same as its name. But in most cases where grep -v grep actually appears, this is no coincidence.
+
+grep -v grep (or grep -v 'grep' or grep -v "grep") often appears on the right side of a pipe whose left side is a ps command. 
+The SIGKILL signal is sent to a process to cause it to terminate immediately (kill).
 ###########################################################3
 
 timeout 300
@@ -421,6 +430,11 @@ in Response you can send Vary header to indicate which headers it actually used 
 def AcceptHeaders():
 	# Accept:
 
+		Accept: <MIME_type>/<MIME_subtype>
+		Accept: <MIME_type>/*
+		Accept: */*
+
+
 	# Accept-CH
 
 	# Accept-Encoding	-	default identity
@@ -517,11 +531,106 @@ debug	Debug-level messages	"Opening config file ..."
 "%h %l %u %t "%r" %>s %b "%{Referer}i" "%{User-agent}i""
 
 """
+#
+
+#######################################   Conditional
+
+ETag: "33a64df551425fcc55e4d42a148795d9f25f89d4"
+ETag: W/"0815"
+
+Last-Modified
+The Last-Modified response HTTP header contains a date and time when the origin server believes the resource was last modified. It is used as a validator to determine if the resource is the same as the previously stored one. Less accurate than an ETag header, it is a fallback mechanism. Conditional requests containing If-Modified-Since or If-Unmodified-Since headers make use of this field.
+
+One of "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", or "Sun" (case-sensitiv
+
+import os, time, datetime
+
+file = "somefile.txt"
+print(file)
+
+print("Modified")
+print(os.stat(file)[-2])
+print(os.stat(file).st_mtime)
+print(os.path.getmtime(file))
+
+print()
+
+print("Created")
+print(os.stat(file)[-1])
+print(os.stat(file).st_ctime)
+print(os.path.getctime(file))
+
+print()
+
+modified = os.path.getmtime(file)
+print("Date modified: "+time.ctime(modified))
+print("Date modified:",datetime.datetime.fromtimestamp(modified))
+year,month,day,hour,minute,second=time.localtime(modified)[:-3]
+print("Date modified: %02d/%02d/%d %02d:%02d:%02d"%(day,month,year,hour,minute,second))
+
+print()
+
+created = os.path.getctime(file)
+print("Date created: "+time.ctime(created))
+print("Date created:",datetime.datetime.fromtimestamp(created))
+year,month,day,hour,minute,second=time.localtime(created)[:-3]
+print("Date created: %02d/%02d/%d %02d:%02d:%02d"%(day,month,year,hour,minute,second))
+
+
+somefile.txt
+Modified
+1429613446
+1429613446.0
+1429613446.0
+
+Created
+1517491049
+1517491049.28306
+1517491049.28306
+
+Date modified: Tue Apr 21 11:50:46 2015
+Date modified: 2015-04-21 11:50:46
+Date modified: 21/04/2015 11:50:46
+
+Date created: Thu Feb  1 13:17:29 2018
+Date created: 2018-02-01 13:17:29.283060
+Date created: 01/02/2018 13:17:29
+
+
+os.path.getsize() method in Python is used to check the size of specified path. It returns the size of specified path in bytes. The method raise OSError if the file does not exist or is somehow inaccessible.
 
 
 
+#################################################
+
+generate etag
+last modified - getmtime
+size of file
+name of file
 
 
+#####################################
 
 
+Testing
+
+Method 	Description
+delete(url, args) 	Sends a DELETE request to the specified url
+get(url, params, args) 	Sends a GET request to the specified url
+head(url, args) 	Sends a HEAD request to the specified url
+patch(url, data, args) 	Sends a PATCH request to the specified url
+post(url, data, json, args) 	Sends a POST request to the specified url
+put(url, data, args) 	Sends a PUT request to the specified url
+request(method, url, args) 	Sends a request of the specified method to the specified url
+
+
+		print("Post request error")
+		exc_type, exc_obj, exc_tb = sys.exc_info()
+		fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+		print(exc_type, fname, exc_tb.tb_lineno)
+
+
+https://realpython.com/python-requests/
+post:
+files  - Optional. A dictionary of files to send to the specified url
 
